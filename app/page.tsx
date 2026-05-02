@@ -1,9 +1,15 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
-import { INITIAL_STATS, ENERGY_BY_YEAR } from "./lib/gameData.js";
+import React, { useState } from 'react';
+import type { CSSProperties } from "react";
+import {
+  ACTIVITIES,
+  INITIAL_STATS,
+  ENERGY_BY_YEAR,
+} from "./lib/gameData.js";
 import StartScreen from "./components/StartScreen";
 import StatBars from "./components/StatBars";
+import ActivityPicker from "./components/ActivityPicker";
 
 export default function Home() {
   const [playerName, setPlayerName] = useState("");
@@ -13,6 +19,10 @@ export default function Home() {
   const [stats, setStats] = useState(() => ({ ...INITIAL_STATS }));
   const [energyRemaining, setEnergyRemaining] = useState(
     ENERGY_BY_YEAR.year1,
+  );
+  const [weekSelections, setWeekSelections] = useState<string[]>([]);
+  const [gamePhase, setGamePhase] = useState<"playing" | "cutscene">(
+    "playing",
   );
 
   if (!gameStarted) {
@@ -24,6 +34,8 @@ export default function Home() {
           setCurrentWeek(1);
           setStats({ ...INITIAL_STATS });
           setEnergyRemaining(ENERGY_BY_YEAR.year1);
+          setWeekSelections([]);
+          setGamePhase("playing");
           setGameStarted(true);
         }}
       />
@@ -56,7 +68,7 @@ export default function Home() {
     opacity: 0.9,
   };
 
-  const placeholder: CSSProperties = {
+  const cutscenePlaceholder: CSSProperties = {
     marginTop: 28,
     padding: 20,
     borderRadius: 8,
@@ -74,9 +86,42 @@ export default function Home() {
         </div>
       </header>
       <StatBars stats={stats} />
-      <div style={placeholder} data-energy={energyRemaining}>
-        Activity picker goes here
-      </div>
+      {gamePhase === "playing" ? (
+        <ActivityPicker
+          activities={ACTIVITIES}
+          energyRemaining={energyRemaining}
+          totalEnergy={
+            ENERGY_BY_YEAR[`year${currentYear}` as keyof typeof ENERGY_BY_YEAR]
+          }
+          weekSelections={weekSelections}
+          onAdd={(id) => {
+            const activity = ACTIVITIES.find((a) => a.id === id);
+            if (activity && energyRemaining >= activity.epCost) {
+              setWeekSelections([...weekSelections, id]);
+              setEnergyRemaining(energyRemaining - activity.epCost);
+            }
+          }}
+          onRemove={(id) => {
+            const idx = weekSelections.lastIndexOf(id);
+            if (idx !== -1) {
+              const newSelections = [...weekSelections];
+              newSelections.splice(idx, 1);
+              const activity = ACTIVITIES.find((a) => a.id === id);
+              setWeekSelections(newSelections);
+              if (activity) {
+                setEnergyRemaining(energyRemaining + activity.epCost);
+              }
+            }
+          }}
+          onConfirm={() => {
+            setGamePhase("cutscene");
+          }}
+        />
+      ) : (
+        <div style={cutscenePlaceholder}>
+          CutsceneScreen goes here (game phase: cutscene)
+        </div>
+      )}
     </div>
   );
 }
