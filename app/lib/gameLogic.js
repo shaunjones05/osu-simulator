@@ -1,8 +1,4 @@
-import { ACTIVITIES } from "./gameData.js";
-
 const STAT_KEYS = ["gpa", "health", "happiness", "social"];
-
-const activityById = new Map(ACTIVITIES.map((a) => [a.id, a]));
 
 function clampStat(value) {
   const n = Number(value);
@@ -12,18 +8,19 @@ function clampStat(value) {
 
 /**
  * @param {Record<string, number>} currentStats
- * @param {string[]} activityIds
+ * @param {Array<{ effects: Record<string, number> }>} activities — chosen activity objects (e.g. from ACTIVITIES)
  */
-export function applyEffects(currentStats, activityIds) {
-  const ids = Array.isArray(activityIds) ? activityIds : [];
+export function applyActivityEffects(currentStats, activities) {
+  const list = Array.isArray(activities) ? activities : [];
   const delta = { gpa: 0, health: 0, happiness: 0, social: 0 };
-  for (const id of ids) {
-    const activity = activityById.get(id);
-    if (!activity) continue;
+
+  for (const activity of list) {
+    if (!activity?.effects) continue;
     for (const key of STAT_KEYS) {
-      delta[key] += activity.effects[key];
+      delta[key] += Number(activity.effects[key]) || 0;
     }
   }
+
   const next = { ...currentStats };
   for (const key of STAT_KEYS) {
     const base = Number(currentStats[key]) || 0;
@@ -37,44 +34,63 @@ export function applyEffects(currentStats, activityIds) {
  * @returns {{ isOver: boolean, reason: string }}
  */
 export function checkGameOver(stats) {
-  if (stats.gpa < 20) {
-    return { isOver: true, reason: "expelled" };
-  }
   if (stats.health < 15) {
-    return { isOver: true, reason: "medical withdrawal" };
+    return {
+      isOver: true,
+      reason: "Medical withdrawal — your health collapsed",
+    };
+  }
+  if (stats.gpa < 10) {
+    return {
+      isOver: true,
+      reason: "Academic probation — you've been expelled",
+    };
   }
   return { isOver: false, reason: "" };
 }
 
 /**
- * Inter-stat rules: low happiness halves positive GPA gains for the week (needs prior snapshot).
- * Low social drains happiness by 3.
+ * End-of-week passive rules. Does not mutate `stats`.
  *
- * @param {Record<string, number>} stats — stats after activity effects this week
- * @param {Record<string, number>} [priorStats] — stats at week start; omit to skip GPA halving
+ * @param {Record<string, number>} stats
  */
-export function applyInteractions(stats, priorStats) {
-  const next = { ...stats };
+export function applyPassiveEffects(stats) {
+  let gpa = Number(stats.gpa) || 0;
+  let health = Number(stats.health) || 0;
+  let happiness = Number(stats.happiness) || 0;
+  let social = Number(stats.social) || 0;
 
-  if (priorStats != null && priorStats.happiness < 20) {
-    const gpaGain = Math.max(0, stats.gpa - priorStats.gpa);
-    if (gpaGain > 0) {
-      next.gpa = clampStat(priorStats.gpa + gpaGain / 2);
-    }
+  if (happiness < 20) {
+    gpa -= 3;
+    health -= 2;
+  }
+  if (social < 10) {
+    happiness -= 3;
   }
 
-  if (stats.social < 10) {
-    next.happiness = clampStat(next.happiness - 3);
-  }
-
-  return next;
+  return {
+    ...stats,
+    gpa: clampStat(gpa),
+    health: clampStat(health),
+    happiness: clampStat(happiness),
+    social: clampStat(social),
+  };
 }
 
 /**
- * @param {number} gpaScore — internal 0–100 scale
- * @returns {number} display GPA 0.0–4.0
+ * Final score 0–100 from stats (equal weight per stat). `week` / `year` reserved for future modifiers.
+ *
+ * @param {Record<string, number>} stats
+ * @param {number} week
+ * @param {number} year
  */
-export function calculateGPADisplay(gpaScore) {
-  const s = Number(gpaScore) || 0;
-  return (clampStat(s) / 100) * 4;
+export function calculateFinalScore(stats, week, year) {
+  void week;
+  void year;
+  const gpa = Number(stats.gpa) || 0;
+  const health = Number(stats.health) || 0;
+  const happiness = Number(stats.happiness) || 0;
+  const social = Number(stats.social) || 0;
+  const average = (gpa + health + happiness + social) / STAT_KEYS.length;
+  return clampStat(average);
 }
