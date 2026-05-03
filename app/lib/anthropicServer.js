@@ -1,20 +1,6 @@
-const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
+import { extractAssistantText } from "./anthropicResponseText.js";
 
-/**
- * @param {unknown} data
- * @returns {string | null}
- */
-function extractTextFromAnthropicResponse(data) {
-  if (!data || typeof data !== "object") return null;
-  const content = data.content;
-  if (!Array.isArray(content)) return null;
-  const textBlock = content.find(
-    (b) => b && typeof b === "object" && b.type === "text",
-  );
-  if (!textBlock || typeof textBlock.text !== "string") return null;
-  const t = textBlock.text.trim();
-  return t.length > 0 ? t : null;
-}
+const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
 
 /**
  * @param {string} userPrompt
@@ -54,7 +40,7 @@ export async function anthropicMessagesComplete(
     throw new Error(msg);
   }
 
-  const text = extractTextFromAnthropicResponse(data);
+  const text = extractAssistantText(data);
   if (!text) throw new Error("No text content in response");
   return text;
 }

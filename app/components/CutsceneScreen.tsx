@@ -195,11 +195,12 @@ export default function CutsceneScreen({
   };
 
   const storyStyle: CSSProperties = {
-    color: "rgba(255, 255, 255, 0.78)",
+    color: "rgba(255, 255, 255, 0.58)",
     fontSize: "0.98rem",
+    fontStyle: "italic",
     lineHeight: 1.7,
     marginBottom: "1.25rem",
-    marginTop: 0,
+    marginTop: "0.35rem",
   };
 
   const eventBox: CSSProperties = {

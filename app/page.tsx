@@ -636,69 +636,78 @@ export default function Home() {
     setPendingApiScenario(null);
 
     void (async () => {
-      const {
-        finalStats,
-        story,
-        sceneFile,
-        extra,
-        apiScenario,
-        moneyNetChange,
-        specialEventHist,
-        randomEventHist,
-      } = await resolveWeekEnd(
-        statsBefore,
-        selections,
-        year,
-        week,
-        baseline,
-        name,
-        usedScenarioIds,
-        moneySnap,
-        jobSnap,
-        perksSnap,
-        riskSnap,
-      );
+      try {
+        const {
+          finalStats,
+          story,
+          sceneFile,
+          extra,
+          apiScenario,
+          moneyNetChange,
+          specialEventHist,
+          randomEventHist,
+        } = await resolveWeekEnd(
+          statsBefore,
+          selections,
+          year,
+          week,
+          baseline,
+          name,
+          usedScenarioIds,
+          moneySnap,
+          jobSnap,
+          perksSnap,
+          riskSnap,
+        );
 
-      const activitiesChosen = selections.map((id) => {
-        const a = ACTIVITIES.find((ac) => ac.id === id);
-        return {
-          name: a?.name ?? id,
-          location: a?.location ?? "",
+        const activitiesChosen = selections.map((id) => {
+          const a = ACTIVITIES.find((ac) => ac.id === id);
+          return {
+            name: a?.name ?? id,
+            location: a?.location ?? "",
+          };
+        });
+        const jobObj = jobSnap ? JOBS.find((j) => j.id === jobSnap) : null;
+        const weekEntry: WeekHistoryEntry = {
+          year,
+          week,
+          activitiesChosen,
+          jobWorked: jobObj?.name ?? null,
+          moneyEarned: jobObj?.weeklyPay ?? 0,
+          moneySpent: weeklyShopSpendSnap,
+          shopItemsBought: [...weeklyPurchasesSnap],
+          randomEvent: randomEventHist,
+          specialEvent: specialEventHist,
+          statsBefore,
+          statsAfter: finalStats,
         };
-      });
-      const jobObj = jobSnap ? JOBS.find((j) => j.id === jobSnap) : null;
-      const weekEntry: WeekHistoryEntry = {
-        year,
-        week,
-        activitiesChosen,
-        jobWorked: jobObj?.name ?? null,
-        moneyEarned: jobObj?.weeklyPay ?? 0,
-        moneySpent: weeklyShopSpendSnap,
-        shopItemsBought: [...weeklyPurchasesSnap],
-        randomEvent: randomEventHist,
-        specialEvent: specialEventHist,
-        statsBefore,
-        statsAfter: finalStats,
-      };
-      setWeekHistory((h) => [...h, weekEntry]);
+        setWeekHistory((h) => [...h, weekEntry]);
 
-      setCutsceneWeekSelections([...selections]);
-      setStoryText(story);
-      setPendingApiScenario(apiScenario);
-      setSceneImageFilename(sceneFile);
-      setCutsceneExtraEvent(extra);
-      setCutsceneStatsBefore(statsBefore);
-      setCutsceneStatsAfter(finalStats);
-      setStats(finalStats);
-      setMoney((m) => clampMoney(m + moneyNetChange));
-      setIsGeneratingStory(false);
+        setCutsceneWeekSelections([...selections]);
+        setStoryText(story);
+        setPendingApiScenario(apiScenario);
+        setSceneImageFilename(sceneFile);
+        setCutsceneExtraEvent(extra);
+        setCutsceneStatsBefore(statsBefore);
+        setCutsceneStatsAfter(finalStats);
+        setStats(finalStats);
+        setMoney((m) => clampMoney(m + moneyNetChange));
 
-      const over = checkGameOver(finalStats);
-      if (over.isOver) {
-        setGameOverReason(over.reason);
-        setGamePhase("gameover");
-      } else {
-        setGamePhase("cutscene");
+        const over = checkGameOver(finalStats);
+        if (over.isOver) {
+          setGameOverReason(over.reason);
+          setGamePhase("gameover");
+        } else {
+          setGamePhase("cutscene");
+        }
+      } catch (err) {
+        console.error("[week] End week failed:", err);
+        window.alert(
+          "Something went wrong while simming the week. If the loading screen never ends, check the browser console. AI cutscenes need ANTHROPIC_API_KEY in `.env.local` at the repo root; restart `npm run dev` after adding it.",
+        );
+        setGamePhase("picking");
+      } finally {
+        setIsGeneratingStory(false);
       }
     })();
   }

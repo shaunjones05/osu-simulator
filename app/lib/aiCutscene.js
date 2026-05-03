@@ -1,7 +1,9 @@
 import { ACTIVITIES } from "./gameData.js";
+import { extractAssistantText } from "./anthropicResponseText.js";
 
 const ANTHROPIC_MESSAGES_URL = "/api/claude";
-const MODEL = "claude-sonnet-4-20250514";
+/** Keep in sync with `anthropicMessagesComplete` default in `anthropicServer.js`. */
+const MODEL = "claude-sonnet-4-5";
 const MAX_TOKENS_CUTSCENE = 300;
 const MAX_TOKENS_ENDING = 300;
 
@@ -100,20 +102,6 @@ function formatActivityClause(chosenActivities) {
 }
 
 /**
- * @param {unknown} data
- * @returns {string | null}
- */
-function extractTextFromAnthropicResponse(data) {
-  if (!data || typeof data !== "object") return null;
-  const content = data.content;
-  if (!Array.isArray(content)) return null;
-  const textBlock = content.find((b) => b && typeof b === "object" && b.type === "text");
-  if (!textBlock || typeof textBlock.text !== "string") return null;
-  const t = textBlock.text.trim();
-  return t.length > 0 ? t : null;
-}
-
-/**
  * @param {string} userPrompt
  * @param {number} maxTokens
  */
@@ -139,7 +127,7 @@ async function callAnthropicMessages(userPrompt, maxTokens) {
     throw new Error(msg);
   }
 
-  const text = extractTextFromAnthropicResponse(data);
+  const text = extractAssistantText(data);
   if (!text) throw new Error("No text content in response");
   return text;
 }
