@@ -170,6 +170,9 @@ const WEEKLY_EP_MAX = 5;
 /** EP cost for "Find My Soulmate" in the Dating panel. */
 const FIND_SOULMATE_EP_COST = 1;
 
+/** EP reserved each week at start while you have a partner (separate from find cost). */
+const PARTNER_WEEKLY_EP_COST = 1;
+
 function getJobById(jobId: string | null) {
   return jobId ? (JOBS.find((j) => j.id === jobId) ?? null) : null;
 }
@@ -179,9 +182,14 @@ function jobWeeklyEpCost(jobId: string | null): number {
   return j?.epCost ?? 0;
 }
 
-/** EP available for activities after reserving the job at week start. */
-function energyAfterJobReservation(jobId: string | null): number {
-  return Math.max(0, WEEKLY_EP_MAX - jobWeeklyEpCost(jobId));
+/** Weekly EP pool after job + partner upkeep reserved at week start (1 EP/week while dating). */
+function energyAfterWeekStartReservations(
+  jobId: string | null,
+  hasPartner: boolean,
+): number {
+  const jobEp = jobWeeklyEpCost(jobId);
+  const datingEp = hasPartner ? PARTNER_WEEKLY_EP_COST : 0;
+  return Math.max(0, WEEKLY_EP_MAX - jobEp - datingEp);
 }
 
 /** Non-crypto jobs with epCost above the weekly cap never receive pay that week. */
@@ -414,7 +422,7 @@ export default function Home() {
     ...INITIAL_STATS,
   }));
   const [energyRemaining, setEnergyRemaining] = useState(() =>
-    energyAfterJobReservation(null),
+    energyAfterWeekStartReservations(null, false),
   );
   const [weekSelections, setWeekSelections] = useState<string[]>([]);
   const [gamePhase, setGamePhase] = useState<GamePhase>("picking");
@@ -482,6 +490,8 @@ export default function Home() {
   const kalshiRollStartedRef = useRef(false);
   const pendingKalshiChoiceRef = useRef<number | null>(null);
   const pendingJobIdRef = useRef<string | null>(null);
+  /** True if this week's energy already included the -1 partner upkeep at week start (for breakup refund). */
+  const partnerWeeklyEpReservedRef = useRef(false);
   const [weekHistory, setWeekHistory] = useState<WeekHistoryEntry[]>([]);
   const [weeklyPurchases, setWeeklyPurchases] = useState<string[]>([]);
   const [weeklyShopSpend, setWeeklyShopSpend] = useState(0);
@@ -543,9 +553,8 @@ export default function Home() {
           const baseline = { ...INITIAL_STATS };
           setStats(baseline);
           setWeek1BaselineStats(baseline);
-          setEnergyRemaining(
-            energyAfterJobReservation(null),
-          );
+          setEnergyRemaining(energyAfterWeekStartReservations(null, false));
+          partnerWeeklyEpReservedRef.current = false;
           setWeekSelections([]);
           setDatingPanelOpen(false);
           setShowBreakupConfirm(false);
@@ -1145,7 +1154,13 @@ export default function Home() {
       setWeeklyPurchases([]);
       setWeeklyShopSpend(0);
       setGamePhase("picking");
-      setEnergyRemaining(energyAfterJobReservation(nextJobIdForEnergy));
+      {
+        const hasPartner = currentSoulmate !== null;
+        setEnergyRemaining(
+          energyAfterWeekStartReservations(nextJobIdForEnergy, hasPartner),
+        );
+        partnerWeeklyEpReservedRef.current = hasPartner;
+      }
       return;
     }
 
@@ -1164,7 +1179,13 @@ export default function Home() {
       setWeeklyPurchases([]);
       setWeeklyShopSpend(0);
       setGamePhase("yearTransition");
-      setEnergyRemaining(energyAfterJobReservation(nextJobIdForEnergy));
+      {
+        const hasPartner = currentSoulmate !== null;
+        setEnergyRemaining(
+          energyAfterWeekStartReservations(nextJobIdForEnergy, hasPartner),
+        );
+        partnerWeeklyEpReservedRef.current = hasPartner;
+      }
       return;
     }
 
@@ -1379,6 +1400,10 @@ export default function Home() {
       return;
     }
     const nm = currentSoulmate.name;
+    if (partnerWeeklyEpReservedRef.current) {
+      partnerWeeklyEpReservedRef.current = false;
+      setEnergyRemaining((e) => e + PARTNER_WEEKLY_EP_COST);
+    }
     setCurrentSoulmate(null);
     setRelationshipStartDate(null);
     showHudToast(`💔 You and ${nm} have broken up.`);
@@ -1650,6 +1675,12 @@ export default function Home() {
       : undefined;
 
   const jobEpReserved = jobWeeklyEpCost(activeJobId);
+  const datingEpReserved = currentSoulmate ? PARTNER_WEEKLY_EP_COST : 0;
+  const epHudReserveLines =
+    (activeJobId && jobEpReserved > 0 ? 1 : 0) +
+    (currentSoulmate ? 1 : 0);
+  const statBarsTopOffset =
+    epHudReserveLines > 0 ? 70 + epHudReserveLines * 26 : 70;
   const activityEpSpentThisWeek = weekSelections.reduce((sum, id) => {
     const a = ACTIVITIES.find((ac) => ac.id === id);
     return sum + (a?.epCost ?? 0);
@@ -1774,12 +1805,25 @@ export default function Home() {
             Job: -{jobEpReserved} EP reserved
           </div>
         ) : null}
+        {currentSoulmate ? (
+          <div
+            style={{
+              fontSize: 11,
+              lineHeight: 1.35,
+              color: "#E91E8C",
+              opacity: 0.82,
+              marginTop: 2,
+            }}
+          >
+            💕 Dating: -1 EP
+          </div>
+        ) : null}
       </div>
 
       <div
         style={{
           position: "fixed",
-          top: activeJobId && jobEpReserved > 0 ? 100 : 70,
+          top: statBarsTopOffset,
           left: 16,
           zIndex: 10,
           width: 248,
@@ -1944,7 +1988,7 @@ export default function Home() {
             variant="panel"
             activities={ACTIVITIES}
             energyRemaining={energyRemaining}
-            totalEnergy={WEEKLY_EP_MAX - jobEpReserved}
+            totalEnergy={WEEKLY_EP_MAX - jobEpReserved - datingEpReserved}
             currentYear={currentYear}
             weekSelections={weekSelections}
             onAdd={(id) => {
