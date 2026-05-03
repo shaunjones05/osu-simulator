@@ -279,7 +279,6 @@ export default function Home() {
   const [weekSelections, setWeekSelections] = useState<string[]>([]);
   const [gamePhase, setGamePhase] = useState<GamePhase>("picking");
   const [isGeneratingStory, setIsGeneratingStory] = useState(false);
-  const [storyText, setStoryText] = useState("");
   const [sceneImageFilename, setSceneImageFilename] = useState("");
   const [cutsceneExtraEvent, setCutsceneExtraEvent] =
     useState<CutsceneExtraEvent | null>(null);
@@ -311,9 +310,9 @@ export default function Home() {
   const [weeklyPurchases, setWeeklyPurchases] = useState<string[]>([]);
   const [weeklyShopSpend, setWeeklyShopSpend] = useState(0);
   const [summaryPanelOpen, setSummaryPanelOpen] = useState(false);
-  const [cutsceneActivityChips, setCutsceneActivityChips] = useState<string[]>(
-    [],
-  );
+  const [cutsceneWeekSelections, setCutsceneWeekSelections] = useState<
+    string[]
+  >([]);
   const [toast, setToast] = useState({ message: "", visible: false });
   const toastDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -349,7 +348,6 @@ export default function Home() {
           setWeekSelections([]);
           setGamePhase("picking");
           setIsGeneratingStory(false);
-          setStoryText("");
           setSceneImageFilename("");
           setCutsceneExtraEvent(null);
           setCutsceneStatsBefore(null);
@@ -373,7 +371,7 @@ export default function Home() {
           setWeeklyPurchases([]);
           setWeeklyShopSpend(0);
           setSummaryPanelOpen(false);
-          setCutsceneActivityChips([]);
+          setCutsceneWeekSelections([]);
           if (toastDismissTimerRef.current) {
             clearTimeout(toastDismissTimerRef.current);
             toastDismissTimerRef.current = null;
@@ -638,7 +636,6 @@ export default function Home() {
     void (async () => {
       const {
         finalStats,
-        story,
         sceneFile,
         extra,
         apiScenario,
@@ -682,13 +679,8 @@ export default function Home() {
       };
       setWeekHistory((h) => [...h, weekEntry]);
 
-      setCutsceneActivityChips(
-        formatActivitiesSummaryLine(selections)
-          .split(", ")
-          .filter(Boolean),
-      );
+      setCutsceneWeekSelections([...selections]);
       setPendingApiScenario(apiScenario);
-      setStoryText(story);
       setSceneImageFilename(sceneFile);
       setCutsceneExtraEvent(extra);
       setCutsceneStatsBefore(statsBefore);
@@ -938,14 +930,13 @@ export default function Home() {
     return (
       <CutsceneScreen
         isLoading={isGeneratingStory}
-        storyText={storyText}
         sceneImage={sceneImageFilename}
         week={currentWeek}
         year={currentYear}
         statsBefore={before}
         statsAfter={after}
         extraEvent={cutsceneExtraEvent}
-        activityChips={cutsceneActivityChips}
+        weekSelections={cutsceneWeekSelections}
         onContinue={() => {
           void handleCutsceneContinue();
         }}
