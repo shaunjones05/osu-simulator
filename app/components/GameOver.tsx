@@ -13,6 +13,7 @@ export type GameOverStats = {
   health: number;
   happiness: number;
   social: number;
+  attractiveness: number;
 };
 
 const STAT_ORDER: (keyof GameOverStats)[] = [
@@ -20,6 +21,7 @@ const STAT_ORDER: (keyof GameOverStats)[] = [
   "health",
   "happiness",
   "social",
+  "attractiveness",
 ];
 
 const STAT_LABELS: Record<keyof GameOverStats, string> = {
@@ -27,6 +29,7 @@ const STAT_LABELS: Record<keyof GameOverStats, string> = {
   health: "Health",
   happiness: "Happiness",
   social: "Social",
+  attractiveness: "Looks",
 };
 
 const BAR_COLORS: Record<keyof GameOverStats, string> = {
@@ -34,6 +37,7 @@ const BAR_COLORS: Record<keyof GameOverStats, string> = {
   health: "#1D9E75",
   happiness: "#378ADD",
   social: "#7F77DD",
+  attractiveness: "#E91E8C",
 };
 
 function clamp100(n: number): number {

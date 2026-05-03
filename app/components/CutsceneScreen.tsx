@@ -12,6 +12,7 @@ const STAT_KEYS: (keyof WeekStats)[] = [
   "health",
   "happiness",
   "social",
+  "attractiveness",
 ];
 
 const STAT_LABELS: Record<keyof WeekStats, string> = {
@@ -19,6 +20,7 @@ const STAT_LABELS: Record<keyof WeekStats, string> = {
   health: "Health",
   happiness: "Happiness",
   social: "Social",
+  attractiveness: "Looks",
 };
 
 /** First segment of location (before comma) for readable prose. */
@@ -77,6 +79,8 @@ export function buildWeekActivitySummary(selectionIds: string[]): string {
         return `had a study group at ${loc}${suf}`;
       case "gambling":
         return `went to a gambling night${suf}`;
+      case "find-soulmate":
+        return `went looking for a soulmate on campus${suf}`;
       default:
         return `${a.name.toLowerCase()} at ${loc}${suf}`;
     }

@@ -13,6 +13,7 @@ export type Activity = {
     health: number;
     happiness: number;
     social: number;
+    attractiveness: number;
   };
   /** If set, activity is locked until this academic year (inclusive). */
   minYear?: number;

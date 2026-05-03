@@ -1,4 +1,4 @@
-const STAT_KEYS = ["gpa", "health", "happiness", "social"];
+const STAT_KEYS = ["gpa", "health", "happiness", "social", "attractiveness"];
 
 function clampStat(value) {
   const n = Number(value);
@@ -43,6 +43,7 @@ export function applyWeek(currentStats, selectedActivityIds, activities) {
   let health = baseHealth;
   let happiness = Number(currentStats?.happiness) || 0;
   let social = Number(currentStats?.social) || 0;
+  let attractiveness = Number(currentStats?.attractiveness) || 0;
 
   for (const id of ids) {
     const activity = byId.get(id);
@@ -52,6 +53,7 @@ export function applyWeek(currentStats, selectedActivityIds, activities) {
     gpa += (Number(e.gpa) || 0) * mult;
     happiness += (Number(e.happiness) || 0) * mult;
     social += (Number(e.social) || 0) * mult;
+    attractiveness += Number(e.attractiveness) || 0;
   }
 
   const rounded = {
@@ -59,6 +61,7 @@ export function applyWeek(currentStats, selectedActivityIds, activities) {
     health,
     happiness,
     social,
+    attractiveness,
   };
   const next = { ...currentStats };
   for (const key of STAT_KEYS) {
@@ -70,16 +73,18 @@ export function applyWeek(currentStats, selectedActivityIds, activities) {
 /**
  * Post-week passive rules (PDR). Does not mutate `stats`.
  * @param {Record<string, number>} stats
- * @param {{ activePerks?: Array<{ weeklyBonus?: Record<string, number> | null }> }} [options]
+ * @param {{ activePerks?: Array<{ weeklyBonus?: Record<string, number> | null }>; hasSoulmate?: boolean }} [options]
  * @returns {Record<string, number>}
  */
 export function applyPassiveEffects(stats, options) {
   const perks = options?.activePerks ?? [];
+  const hasSoulmate = Boolean(options?.hasSoulmate);
 
   let gpa = Number(stats?.gpa) || 0;
   let health = Number(stats?.health) || 0;
   let happiness = Number(stats?.happiness) || 0;
   let social = Number(stats?.social) || 0;
+  let attractiveness = Number(stats?.attractiveness) || 0;
 
   for (const p of perks) {
     const b = p?.weeklyBonus;
@@ -88,6 +93,11 @@ export function applyPassiveEffects(stats, options) {
     health += Number(b.health) || 0;
     happiness += Number(b.happiness) || 0;
     social += Number(b.social) || 0;
+    attractiveness += Number(b.attractiveness) || 0;
+  }
+
+  if (hasSoulmate) {
+    happiness += 4;
   }
 
   if (happiness < 20) {
@@ -104,6 +114,7 @@ export function applyPassiveEffects(stats, options) {
     health: clampStat(health),
     happiness: clampStat(happiness),
     social: clampStat(social),
+    attractiveness: clampStat(attractiveness),
   };
 }
 
@@ -181,6 +192,7 @@ export function gamblingNetMoneyDelta(betAmount, multiplier) {
 export function checkGameOver(stats) {
   const health = Number(stats?.health) || 0;
   const gpa = Number(stats?.gpa) || 0;
+  const attractiveness = Number(stats?.attractiveness) || 0;
 
   if (health < 15) {
     return {
@@ -192,6 +204,12 @@ export function checkGameOver(stats) {
     return {
       isOver: true,
       reason: "Expelled — GPA dropped below 1.0",
+    };
+  }
+  if (attractiveness < 8) {
+    return {
+      isOver: true,
+      reason: "You stopped showing up — even the mirror got worried",
     };
   }
   return { isOver: false, reason: "" };
@@ -207,6 +225,7 @@ export function getEnding(finalStats) {
   const health = Number(finalStats?.health) || 0;
   const happiness = Number(finalStats?.happiness) || 0;
   const social = Number(finalStats?.social) || 0;
+  const attractiveness = Number(finalStats?.attractiveness) || 0;
 
   if (gpa >= 90 && (social < 30 || happiness < 30)) {
     return {
@@ -235,12 +254,27 @@ export function getEnding(finalStats) {
     };
   }
 
-  if (gpa >= 55 && health >= 55 && happiness >= 55 && social >= 55) {
+  if (
+    gpa >= 55 &&
+    health >= 55 &&
+    happiness >= 55 &&
+    social >= 55 &&
+    attractiveness >= 55
+  ) {
     return {
       title: "The Balanced Beaver",
       description:
-        "Body, mind, grades, and crew — nothing hit zero, nothing burned out. Steady orange and black all four years.",
+        "Body, mind, grades, crew, and confidence — nothing hit zero, nothing burned out. Steady orange and black all four years.",
       color: "#d84315",
+    };
+  }
+
+  if (attractiveness >= 88 && happiness >= 65 && social >= 60) {
+    return {
+      title: "Main Character Energy",
+      description:
+        "Campus lighting hit different on you. You walked into rooms like you belonged there — because you did.",
+      color: "#E91E8C",
     };
   }
 

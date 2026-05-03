@@ -5,6 +5,7 @@ export type StatBarsStats = {
   health: number;
   happiness: number;
   social: number;
+  attractiveness: number;
 };
 
 export type StatBarsProps = {
@@ -22,6 +23,7 @@ const BAR_COLORS: Record<keyof StatBarsStats, string> = {
   health: "#1D9E75",
   happiness: "#378ADD",
   social: "#7F77DD",
+  attractiveness: "#E91E8C",
 };
 
 const LABELS: Record<keyof StatBarsStats, string> = {
@@ -29,6 +31,7 @@ const LABELS: Record<keyof StatBarsStats, string> = {
   health: "Health",
   happiness: "Happiness",
   social: "Social",
+  attractiveness: "Looks",
 };
 
 const ORDER: (keyof StatBarsStats)[] = [
@@ -36,6 +39,7 @@ const ORDER: (keyof StatBarsStats)[] = [
   "health",
   "happiness",
   "social",
+  "attractiveness",
 ];
 
 const easeAll: CSSProperties = {

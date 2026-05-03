@@ -13,6 +13,7 @@ export type GraduationStats = {
   health: number;
   happiness: number;
   social: number;
+  attractiveness: number;
 };
 
 export type GraduationEnding = {
@@ -26,6 +27,7 @@ const STAT_ORDER: (keyof GraduationStats)[] = [
   "health",
   "happiness",
   "social",
+  "attractiveness",
 ];
 
 const STAT_LABELS: Record<keyof GraduationStats, string> = {
@@ -33,6 +35,7 @@ const STAT_LABELS: Record<keyof GraduationStats, string> = {
   health: "Health",
   happiness: "Happiness",
   social: "Social",
+  attractiveness: "Looks",
 };
 
 const BAR_COLORS: Record<keyof GraduationStats, string> = {
@@ -40,6 +43,7 @@ const BAR_COLORS: Record<keyof GraduationStats, string> = {
   health: "#1D9E75",
   happiness: "#378ADD",
   social: "#7F77DD",
+  attractiveness: "#E91E8C",
 };
 
 const ORANGE = "#D73F09";

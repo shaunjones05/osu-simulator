@@ -25,6 +25,7 @@ import {
   filterAssetsForDisplay,
   assetRowAllowsQuickSell,
   rollPokemonPackPull,
+  SOULMATES,
 } from "./lib/gameData.js";
 import {
   applyWeek,
@@ -98,6 +99,7 @@ const PANEL_FS = 16;
 const PANEL_H2 = 18;
 
 const POKEMON_PACK_ID = "pokemon-pack";
+const LOOKMAXXING_SHOP_ID = "lookmaxxing";
 
 type WeekHistoryEventSnippet = { title: string; description: string };
 
@@ -121,7 +123,19 @@ function clampMoney(n: number): number {
   return Math.max(0, x);
 }
 
-const STAT_KEYS = ["gpa", "health", "happiness", "social"] as const;
+function moneyDeltaFromConsequence(raw: Record<string, unknown>): number {
+  const m = raw.money;
+  if (typeof m !== "number" || !Number.isFinite(m)) return 0;
+  return Math.round(m);
+}
+
+const STAT_KEYS = [
+  "gpa",
+  "health",
+  "happiness",
+  "social",
+  "attractiveness",
+] as const;
 
 function formatStatDelta(delta: Record<string, number> | null | undefined) {
   if (!delta) return "—";
@@ -149,6 +163,7 @@ const ACTIVITY_SHORT_LABEL: Record<string, string> = {
   "club-mu": "Club",
   "study-group-kelley": "Study group",
   gambling: "Gamble",
+  "find-soulmate": "Soulmate",
 };
 
 function activityShortLabel(activityId: string): string {
@@ -174,6 +189,7 @@ const STAT_LABEL_EN: Record<(typeof STAT_KEYS)[number], string> = {
   health: "Health",
   happiness: "Happiness",
   social: "Social",
+  attractiveness: "Looks",
 };
 
 function formatShopToastStatLine(effect: Record<string, number>): string {
@@ -265,6 +281,9 @@ function normalizeWeekStats(
     health: clampStat(Math.round(Number(s.health) || 0)),
     happiness: clampStat(Math.round(Number(s.happiness) || 0)),
     social: clampStat(Math.round(Number(s.social) || 0)),
+    attractiveness: clampStat(
+      Math.round(Number(s.attractiveness) || 0),
+    ),
   };
 }
 
@@ -343,6 +362,11 @@ export default function Home() {
   const [shopPanelOpen, setShopPanelOpen] = useState(false);
   const [assetsPanelOpen, setAssetsPanelOpen] = useState(false);
   const [money, setMoney] = useState(500);
+  const [currentSoulmate, setCurrentSoulmate] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [isDateAvailable, setIsDateAvailable] = useState(true);
   const [fakeidRisk, setFakeidRisk] = useState<FakeIdRisk>("none");
   const [fakeIdConfirmItemId, setFakeIdConfirmItemId] = useState<string | null>(
     null,
@@ -415,6 +439,8 @@ export default function Home() {
         onStart={(name, major) => {
           setPlayerName(name);
           setPlayerMajor(major);
+          setCurrentSoulmate(null);
+          setIsDateAvailable(true);
           setCurrentYear(1);
           setCurrentWeek(1);
           const baseline = { ...INITIAL_STATS };
@@ -520,6 +546,7 @@ export default function Home() {
     activeJobIdAtStart: string | null,
     activePerksSnapshot: ActivePerk[],
     fakeidRiskAtStart: FakeIdRisk,
+    hadSoulmateAtWeekStart: boolean,
     resolutionOpts?: {
       jobHadEnoughEp?: boolean;
       gamblingBet?: number;
@@ -532,7 +559,10 @@ export default function Home() {
       applyWeek(statsBefore, selections, ACTIVITIES),
     );
     s = normalizeWeekStats(
-      applyPassiveEffects(s, { activePerks: activePerksSnapshot }),
+      applyPassiveEffects(s, {
+        activePerks: activePerksSnapshot,
+        hasSoulmate: hadSoulmateAtWeekStart,
+      }),
     );
 
     const special = getSpecialEvent(year, week);
@@ -838,6 +868,9 @@ export default function Home() {
     kalshiRollStartedRef.current = false;
 
     const statsBefore: WeekStats = { ...stats };
+    const hadSoulmateAtWeekStart = currentSoulmate !== null;
+    const hadPartnerAtWeekStart = hadSoulmateAtWeekStart;
+    const dateSlotOpen = isDateAvailable;
     const year = currentYear;
     const week = currentWeek;
     const baseline = { ...week1BaselineStats };
@@ -885,6 +918,7 @@ export default function Home() {
         jobSnap,
         perksSnap,
         riskSnap,
+        hadSoulmateAtWeekStart,
         {
           jobHadEnoughEp,
           gamblingBet: gamblingBetAmount ?? 0,
@@ -892,6 +926,23 @@ export default function Home() {
           kalshiChoice: kalshiChoiceSnap,
         },
       );
+
+      if (
+        selections.includes("find-soulmate") &&
+        !hadPartnerAtWeekStart &&
+        dateSlotOpen &&
+        SOULMATES.length > 0
+      ) {
+        const pick =
+          SOULMATES[Math.floor(Math.random() * SOULMATES.length)];
+        if (pick) {
+          setCurrentSoulmate(pick);
+          setIsDateAvailable(false);
+          showHudToast(
+            `💕 You matched with ${pick.name}! You are now dating.`,
+          );
+        }
+      }
 
       setGamblingBetAmount(null);
       setGamblingMoneyNet(null);
@@ -1055,6 +1106,10 @@ export default function Home() {
       const delta = deltaFromConsequence(con);
       const nextStats = normalizeWeekStats(applyStatDelta(stats, delta));
       setStats(nextStats);
+      const cashDelta = moneyDeltaFromConsequence(con);
+      if (cashDelta !== 0) {
+        setMoney((m) => clampMoney(m + cashDelta));
+      }
       setFirstPartyDone(true);
       setActiveScenario(null);
       handleActivityConfirm();
@@ -1078,6 +1133,10 @@ export default function Home() {
     const delta = deltaFromConsequence(raw);
     const nextStats = normalizeWeekStats(applyStatDelta(stats, delta));
     setStats(nextStats);
+    const cashDelta = moneyDeltaFromConsequence(raw);
+    if (cashDelta !== 0) {
+      setMoney((m) => clampMoney(m + cashDelta));
+    }
     setUsedScenarioIds((prev) => [
       ...prev,
       scenarioUsedId(activeScenario, currentYear),
@@ -1167,6 +1226,19 @@ export default function Home() {
     }, 2500);
   }
 
+  function handleBreakUp() {
+    if (!currentSoulmate) return;
+    const nm = currentSoulmate.name;
+    if (
+      !window.confirm(`Are you sure you want to break up with ${nm}?`)
+    ) {
+      return;
+    }
+    setCurrentSoulmate(null);
+    setIsDateAvailable(true);
+    showHudToast(`💔 You and ${nm} have broken up.`);
+  }
+
   function showShopPurchaseToast(item: (typeof SHOP)[number]) {
     const rawEffect = (item.effect ?? {}) as Record<string, number>;
     const statLine = formatShopToastStatLine(rawEffect);
@@ -1200,6 +1272,27 @@ export default function Home() {
       ]);
       showHudToast(
         `You pulled a ${pull.name}! Worth $${pull.value}.`,
+      );
+      return;
+    }
+
+    if (item.id === LOOKMAXXING_SHOP_ID) {
+      setMoney((m) => clampMoney(m - item.cost));
+      setWeeklyShopSpend((n) => n + item.cost);
+      setWeeklyPurchases((prev) => [...prev, item.name]);
+      const good = Math.random() < 0.6;
+      setStats((st) => {
+        const cur = Math.round(Number(st.attractiveness) || 0);
+        const d = good ? 15 : -20;
+        return normalizeWeekStats({
+          ...st,
+          attractiveness: clampStat(cur + d),
+        });
+      });
+      showHudToast(
+        good
+          ? "Lookmaxxing paid off! +15 Looks 📈"
+          : "You learned about bone smashing. Turns out fracturing your own bones just causes swelling, nerve damage, and permanent scarring. -20 Looks 💀",
       );
       return;
     }
@@ -1368,6 +1461,11 @@ export default function Home() {
       : undefined;
 
   const spentEpThisWeek = WEEKLY_EP_MAX - energyRemaining;
+  const slidePanelsOpen =
+    activitiesPanelOpen ||
+    careerPanelOpen ||
+    shopPanelOpen ||
+    summaryPanelOpen;
   const hudBtn: React.CSSProperties = {
     width: 180,
     padding: "12px 16px",
@@ -1438,58 +1536,102 @@ export default function Home() {
           left: 16,
           zIndex: 10,
           display: "flex",
-          alignItems: "center",
-          gap: 12,
+          flexDirection: "column",
+          gap: 8,
           background: "rgba(26, 26, 26, 0.85)",
           borderRadius: 20,
           padding: "10px 16px",
           boxSizing: "border-box",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: "1.2rem", lineHeight: 1 }} aria-hidden>
-            ⚡
-          </span>
-          <span
-            style={{
-              fontSize: "1.65rem",
-              fontWeight: 800,
-              color: epHudColor,
-              fontVariantNumeric: "tabular-nums",
-              transition: "color 0.25s ease",
-            }}
-          >
-            {energyRemaining}
-          </span>
-        </div>
         <div
           style={{
-            width: 1,
-            height: 26,
-            background: "rgba(255, 255, 255, 0.2)",
-            flexShrink: 0,
-          }}
-          aria-hidden
-        />
-        <span
-          style={{
-            fontSize: "1.35rem",
-            fontWeight: 800,
-            color: "#1D9E75",
-            fontVariantNumeric: "tabular-nums",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
           }}
         >
-          ${money}
-        </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: "1.2rem", lineHeight: 1 }} aria-hidden>
+              ⚡
+            </span>
+            <span
+              style={{
+                fontSize: "1.65rem",
+                fontWeight: 800,
+                color: epHudColor,
+                fontVariantNumeric: "tabular-nums",
+                transition: "color 0.25s ease",
+              }}
+            >
+              {energyRemaining}
+            </span>
+          </div>
+          <div
+            style={{
+              width: 1,
+              height: 26,
+              background: "rgba(255, 255, 255, 0.2)",
+              flexShrink: 0,
+            }}
+            aria-hidden
+          />
+          <span
+            style={{
+              fontSize: "1.35rem",
+              fontWeight: 800,
+              color: "#1D9E75",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            ${money}
+          </span>
+        </div>
+        {currentSoulmate ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 10,
+              flexWrap: "wrap",
+            }}
+          >
+            <span
+              style={{
+                color: "#E91E8C",
+                fontWeight: 700,
+                fontSize: "0.95rem",
+              }}
+            >
+              💕 {currentSoulmate.name}
+            </span>
+            <button
+              type="button"
+              onClick={handleBreakUp}
+              style={{
+                background: "transparent",
+                border: "none",
+                color: "rgba(255,255,255,0.65)",
+                fontSize: "0.8rem",
+                cursor: "pointer",
+                textDecoration: "underline",
+                padding: 0,
+              }}
+            >
+              💔 Break up
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <div
         style={{
           position: "fixed",
-          top: 70,
+          top: currentSoulmate ? 118 : 70,
           left: 16,
           zIndex: 10,
-          width: 220,
+          width: 248,
           background: "rgba(26, 26, 26, 0.85)",
           borderRadius: 12,
           padding: "10px 14px",
@@ -2617,13 +2759,14 @@ export default function Home() {
         <div
           style={{
             position: "fixed",
-            right: 20,
+            right: slidePanelsOpen ? 370 : 20,
             bottom: 20,
             zIndex: 10050,
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             gap: 10,
+            transition: "right 0.3s ease",
           }}
         >
           <button

@@ -4,7 +4,8 @@ import { extractAssistantText } from "./anthropicResponseText.js";
 const ANTHROPIC_MESSAGES_URL = "/api/claude";
 /** Keep in sync with `anthropicMessagesComplete` default in `anthropicServer.js`. */
 const MODEL = "claude-sonnet-4-5";
-const MAX_TOKENS_CUTSCENE = 300;
+/** Weekly vignette: keep low so the model finishes fast and stays terse. */
+export const MAX_TOKENS_CUTSCENE = 100;
 const MAX_TOKENS_ENDING = 300;
 
 export const FALLBACK_CUTSCENE = "Another week at OSU in the books.";
@@ -161,11 +162,13 @@ export function buildCutsceneUserPrompt(
   const hNow = Number(currentStats?.health) || 0;
   const hapNow = Number(currentStats?.happiness) || 0;
   const sNow = Number(currentStats?.social) || 0;
+  const looksNow = Number(currentStats?.attractiveness) || 0;
 
   const gpaBase = gpaToFourPoint(week1BaselineStats?.gpa);
   const hBase = Number(week1BaselineStats?.health) || 0;
   const hapBase = Number(week1BaselineStats?.happiness) || 0;
   const sBase = Number(week1BaselineStats?.social) || 0;
+  const looksBase = Number(week1BaselineStats?.attractiveness) || 0;
 
   const money = Math.max(0, Math.round(Number(moneyDollars) || 0));
   const job = typeof jobLine === "string" && jobLine.trim() ? jobLine.trim() : "no part-time job";
@@ -173,11 +176,12 @@ export function buildCutsceneUserPrompt(
     typeof playerMajor === "string" && playerMajor.trim()
       ? playerMajor.trim()
       : "";
-  const majorClause = majorTrim
-    ? `The player is majoring in ${majorTrim}. `
-    : "";
+  const majorBit = majorTrim ? `Major ${majorTrim}. ` : "";
 
-  return `The player's name is ${playerName}. ${majorClause}They are a ${standing} at Oregon State University in Week ${week} of their college journey. This week they: ${activityText}. Their current stats: GPA ${gpaNow}, Health ${hNow}/100, Happiness ${hapNow}/100, Social ${sNow}/100. When they arrived at OSU in Week 1, their baseline stats were: GPA ${gpaBase}, Health ${hBase}/100, Happiness ${hapBase}/100, Social ${sBase}/100. They currently have $${money} in spending money. Part-time work: ${job}. You may briefly reference money or their job when it fits the week's story (stress of shifts, treating themselves, ramen budget, etc.) but do not lecture about finances. You may briefly reference their major when it fits naturally (labs, prerequisites, career anxiety) but do not invent specific courses or professors. Write 1-2 short simple sentences about their week. Only mention things you are 100% certain are true based on their activities and stats. Do not invent jobs, relationships, supervisors, or specific people. Keep it vague if unsure. Reference OSU or Corvallis locations only if they actually did an activity there. No emojis.`;
+  return `OSU week recap for ${playerName} (${standing}, Y${year} W${week}). ${majorBit}Activities: ${activityText}
+Now: GPA ${gpaNow}, H${hNow} Ha${hapNow} So${sNow} Lk${looksNow} | Wk1 baseline GPA ${gpaBase} H${hBase} Ha${hapBase} So${sBase} Lk${looksBase} | $${money} | ${job}
+
+Reply with exactly ONE sentence, max 28 words. Stick to listed activities/stats only—no new characters, relationships, or invented events. Name OSU/Corvallis only if an activity was there. Money/job/major only if one short phrase fits. No emojis.`;
 }
 
 /**
@@ -254,9 +258,10 @@ export async function generateCustomEnding(playerName, finalStats) {
     const health = Number(finalStats?.health) || 0;
     const happiness = Number(finalStats?.happiness) || 0;
     const social = Number(finalStats?.social) || 0;
+    const attractiveness = Number(finalStats?.attractiveness) || 0;
 
     const userPrompt =
-      `Write a 3-sentence graduation reflection for ${playerName} at Oregon State University. Their final stats: GPA ${gpa}, Health ${health}/100, Happiness ${happiness}/100, Social ${social}/100. Write a tone-appropriate custom ending that reflects this specific stat combination.`;
+      `Write a 3-sentence graduation reflection for ${playerName} at Oregon State University. Their final stats: GPA ${gpa}, Health ${health}/100, Happiness ${happiness}/100, Social ${social}/100, Looks (attractiveness) ${attractiveness}/100. Write a tone-appropriate custom ending that reflects this specific stat combination.`;
 
     return await callAnthropicMessages(userPrompt, MAX_TOKENS_ENDING);
   } catch {

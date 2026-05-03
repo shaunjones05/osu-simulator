@@ -10,7 +10,7 @@ export const ACTIVITIES = [
     location: "Valley Library, Oregon State University",
     epCost: 2,
     sceneImage: "library.png",
-    effects: { gpa: 6, health: -2, happiness: -1, social: 0 },
+    effects: { gpa: 6, health: -2, happiness: -1, social: 0, attractiveness: 0 },
   },
   {
     id: "gym-dixon-rec",
@@ -18,7 +18,7 @@ export const ACTIVITIES = [
     location: "Dixon Recreation Center, Oregon State University",
     epCost: 2,
     sceneImage: "gym.png",
-    effects: { gpa: 0, health: 7, happiness: 2, social: 1 },
+    effects: { gpa: 0, health: 7, happiness: 2, social: 1, attractiveness: 0 },
   },
   {
     id: "frat-party-26th",
@@ -26,7 +26,7 @@ export const ACTIVITIES = [
     location: "Greek Row (26th Street), Corvallis",
     epCost: 2,
     sceneImage: "party.png",
-    effects: { gpa: -3, health: -5, happiness: 7, social: 7 },
+    effects: { gpa: -3, health: -5, happiness: 7, social: 7, attractiveness: 0 },
   },
   {
     id: "football-reser",
@@ -34,7 +34,7 @@ export const ACTIVITIES = [
     location: "Reser Stadium, Oregon State University",
     epCost: 1,
     sceneImage: "stadium.png",
-    effects: { gpa: 0, health: 0, happiness: 6, social: 6 },
+    effects: { gpa: 0, health: 0, happiness: 6, social: 6, attractiveness: 0 },
     /** At most one Reser trip per in-game week. */
     maxPerWeek: 1,
   },
@@ -44,7 +44,7 @@ export const ACTIVITIES = [
     location: "Arnold Dining Hall, Oregon State University",
     epCost: 1,
     sceneImage: "dining.png",
-    effects: { gpa: 0, health: 4, happiness: 2, social: 1 },
+    effects: { gpa: 0, health: 4, happiness: 2, social: 1, attractiveness: 0 },
   },
   {
     id: "sleep-in",
@@ -52,7 +52,7 @@ export const ACTIVITIES = [
     location: "On-campus housing, Corvallis",
     epCost: 1,
     sceneImage: "dorm.png",
-    effects: { gpa: 1, health: 4, happiness: 1, social: 0 },
+    effects: { gpa: 1, health: 4, happiness: 1, social: 0, attractiveness: 0 },
   },
   {
     id: "club-mu",
@@ -60,7 +60,7 @@ export const ACTIVITIES = [
     location: "Memorial Union (MU), Oregon State University",
     epCost: 2,
     sceneImage: "stadium.png",
-    effects: { gpa: 1, health: 0, happiness: 3, social: 5 },
+    effects: { gpa: 1, health: 0, happiness: 3, social: 5, attractiveness: 0 },
   },
   {
     id: "study-group-kelley",
@@ -68,7 +68,7 @@ export const ACTIVITIES = [
     location: "Kelley Engineering Center, Oregon State University",
     epCost: 2,
     sceneImage: "kelley.png",
-    effects: { gpa: 5, health: 0, happiness: 1, social: 3 },
+    effects: { gpa: 5, health: 0, happiness: 1, social: 3, attractiveness: 0 },
   },
   {
     id: "gambling",
@@ -76,8 +76,29 @@ export const ACTIVITIES = [
     location: "Private game, Corvallis",
     epCost: 1,
     sceneImage: "party.png",
-    effects: { gpa: 0, health: 0, happiness: 4, social: 2 },
+    effects: { gpa: 0, health: 0, happiness: 4, social: 2, attractiveness: 0 },
   },
+  {
+    id: "find-soulmate",
+    name: "Find My Soulmate",
+    location: "OSU Campus",
+    epCost: 1,
+    sceneImage: "dorm.png",
+    effects: {
+      gpa: 0,
+      health: 0,
+      happiness: 0,
+      social: 0,
+      attractiveness: 0,
+    },
+  },
+];
+
+/** Dating pool for "Find My Soulmate" — one random match per playthrough until breakup. */
+export const SOULMATES = [
+  { id: "alex", name: "Alex" },
+  { id: "sam", name: "Sam" },
+  { id: "ahmed", name: "Ahmed Altuhafi" },
 ];
 
 /** One-time coke-at-party scenario (resolved in UI before the rest of the week). */
@@ -138,6 +159,7 @@ export const INITIAL_STATS = {
   health: 70,
   happiness: 65,
   social: 40,
+  attractiveness: 70,
 };
 
 export const ENERGY_BY_YEAR = {
@@ -277,6 +299,17 @@ export function shopItemPassesAgeGate(item, currentYear, fakeidRisk) {
 export const POKEMON_PACK_SHOP_ID = "pokemon-pack";
 
 export const SHOP = [
+  {
+    id: "lookmaxxing",
+    name: "Lookmaxxing Course",
+    description: "A 7-day self improvement course. Results may vary.",
+    cost: 15,
+    effect: {},
+    isOneTime: false,
+    weeklyBonus: null,
+    category: "shop",
+    isConsumable: true,
+  },
   {
     id: "shop-coffee-dutch",
     name: "Coffee from Dutch Bros",

@@ -7,15 +7,23 @@ export type WeekStats = {
   health: number;
   happiness: number;
   social: number;
+  attractiveness: number;
 };
 
-const STAT_KEYS: (keyof WeekStats)[] = ["gpa", "health", "happiness", "social"];
+const STAT_KEYS: (keyof WeekStats)[] = [
+  "gpa",
+  "health",
+  "happiness",
+  "social",
+  "attractiveness",
+];
 
 const STAT_LABELS: Record<keyof WeekStats, string> = {
   gpa: "GPA",
   health: "Health",
   happiness: "Happiness",
   social: "Social",
+  attractiveness: "Looks",
 };
 
 export type WeekSummaryProps = {

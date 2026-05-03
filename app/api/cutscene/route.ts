@@ -4,6 +4,7 @@ import {
   buildCutsceneUserPrompt,
   buildWeeklyScenarioJsonPrompt,
   FALLBACK_CUTSCENE,
+  MAX_TOKENS_CUTSCENE,
 } from "@/app/lib/aiCutscene.js";
 import { anthropicMessagesComplete } from "@/app/lib/anthropicServer.js";
 
@@ -101,10 +102,12 @@ export async function POST(req: Request) {
     );
 
     const [storyText, apiScenario] = await Promise.all([
-      anthropicMessagesComplete(cutscenePrompt, 300).catch((e) => {
-        console.error("CUTSCENE ERROR:", e?.message ?? e);
-        return FALLBACK_CUTSCENE;
-      }),
+      anthropicMessagesComplete(cutscenePrompt, MAX_TOKENS_CUTSCENE).catch(
+        (e) => {
+          console.error("CUTSCENE ERROR:", e?.message ?? e);
+          return FALLBACK_CUTSCENE;
+        },
+      ),
       anthropicMessagesComplete(scenarioPrompt, 900)
         .then((rawJson) => {
           const parsed = extractJsonObject(rawJson);
