@@ -62,13 +62,33 @@ import {
   playGameOver,
   playStatDeltaFromStats,
 } from "./lib/sounds.js";
+import YearTransitionScreen from "./components/YearTransitionScreen";
 
 type GamePhase =
   | "picking"
   | "cutscene"
   | "scenario"
   | "gameover"
-  | "graduation";
+  | "graduation"
+  | "yearTransition";
+
+const YEAR_TRANSITION_COPY: Record<
+  2 | 3 | 4,
+  { title: string; flavorLine: string }
+> = {
+  2: {
+    title: "Sophomore Year Begins",
+    flavorLine: "You know your way around now.",
+  },
+  3: {
+    title: "Junior Year Begins",
+    flavorLine: "Junior year. The hardest one.",
+  },
+  4: {
+    title: "Senior Year Begins",
+    flavorLine: "Final year. Make it count.",
+  },
+};
 
 type FakeIdRisk = "none" | "high" | "low";
 
@@ -1124,7 +1144,7 @@ export default function Home() {
       setSummaryPanelOpen(false);
       setWeeklyPurchases([]);
       setWeeklyShopSpend(0);
-      setGamePhase("picking");
+      setGamePhase("yearTransition");
       setEnergyRemaining(WEEKLY_EP_MAX);
       return;
     }
@@ -1549,6 +1569,24 @@ export default function Home() {
         }}
       />
       </>
+    );
+  }
+
+  if (gamePhase === "yearTransition") {
+    const y = currentYear as 2 | 3 | 4;
+    const copy = YEAR_TRANSITION_COPY[y] ?? {
+      title: `Year ${currentYear}`,
+      flavorLine: "",
+    };
+    return (
+      <YearTransitionScreen
+        key={`year-transition-${currentYear}`}
+        title={copy.title}
+        flavorLine={copy.flavorLine}
+        onDismiss={() => {
+          setGamePhase("picking");
+        }}
+      />
     );
   }
 
