@@ -424,6 +424,7 @@ export default function Home() {
   const [aiEndingText, setAiEndingText] = useState("");
   const [activitiesPanelOpen, setActivitiesPanelOpen] = useState(false);
   const [datingPanelOpen, setDatingPanelOpen] = useState(false);
+  const [showBreakupConfirm, setShowBreakupConfirm] = useState(false);
   const [careerPanelOpen, setCareerPanelOpen] = useState(false);
   const [shopPanelOpen, setShopPanelOpen] = useState(false);
   const [assetsPanelOpen, setAssetsPanelOpen] = useState(false);
@@ -537,6 +538,7 @@ export default function Home() {
           setEnergyRemaining(ENERGY_BY_YEAR.year1);
           setWeekSelections([]);
           setDatingPanelOpen(false);
+          setShowBreakupConfirm(false);
           setGamePhase("picking");
           setIsGeneratingStory(false);
           setStoryText("");
@@ -1000,6 +1002,7 @@ export default function Home() {
     setIsGeneratingStory(true);
     setActivitiesPanelOpen(false);
     setDatingPanelOpen(false);
+    setShowBreakupConfirm(false);
     setCareerPanelOpen(false);
     setShopPanelOpen(false);
     setAssetsPanelOpen(false);
@@ -1121,6 +1124,7 @@ export default function Home() {
       setWeekSelections([]);
       setActivitiesPanelOpen(false);
       setDatingPanelOpen(false);
+      setShowBreakupConfirm(false);
       setCareerPanelOpen(false);
       setShopPanelOpen(false);
       setAssetsPanelOpen(false);
@@ -1139,6 +1143,7 @@ export default function Home() {
       setWeekSelections([]);
       setActivitiesPanelOpen(false);
       setDatingPanelOpen(false);
+      setShowBreakupConfirm(false);
       setCareerPanelOpen(false);
       setShopPanelOpen(false);
       setAssetsPanelOpen(false);
@@ -1355,17 +1360,17 @@ export default function Home() {
     showHudToast(`💕 You matched with ${pick.name}! You are now dating.`);
   }
 
-  function handleBreakUpFromDatingPanel() {
-    if (!currentSoulmate) return;
-    const nm = currentSoulmate.name;
-    if (
-      !window.confirm(`Are you sure you want to break up with ${nm}?`)
-    ) {
+  function confirmBreakUp() {
+    if (!currentSoulmate) {
+      setShowBreakupConfirm(false);
       return;
     }
+    const nm = currentSoulmate.name;
     setCurrentSoulmate(null);
     setRelationshipStartDate(null);
     showHudToast(`💔 You and ${nm} have broken up.`);
+    setShowBreakupConfirm(false);
+    setDatingPanelOpen(false);
   }
 
   function showShopPurchaseToast(item: (typeof SHOP)[number]) {
@@ -1634,7 +1639,6 @@ export default function Home() {
   const spentEpThisWeek = WEEKLY_EP_MAX - energyRemaining;
   const slidePanelsOpen =
     activitiesPanelOpen ||
-    datingPanelOpen ||
     careerPanelOpen ||
     shopPanelOpen ||
     summaryPanelOpen;
@@ -1832,29 +1836,6 @@ export default function Home() {
             </span>
           ) : null}
           Activities
-        </button>
-        <button
-          type="button"
-          className="osu-display-font osu-display-font--micro osu-hud-panel-btn"
-          onClick={openDatingPanel}
-          style={hudBtn}
-        >
-          {currentSoulmate ? (
-            <span
-              aria-hidden
-              style={{
-                position: "absolute",
-                top: 8,
-                right: 10,
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: "#E91E8C",
-                boxShadow: "0 0 0 2px rgba(26,26,26,0.9)",
-              }}
-            />
-          ) : null}
-          💕 Dating
         </button>
         <button
           type="button"
@@ -2901,13 +2882,13 @@ export default function Home() {
         aria-hidden={!datingPanelOpen}
         style={{
           position: "fixed",
-          right: 0,
+          left: 0,
           top: 0,
           width: 340,
           height: "100vh",
           zIndex: 30,
           background: "#1A1A1A",
-          transform: datingPanelOpen ? "translateX(0)" : "translateX(100%)",
+          transform: datingPanelOpen ? "translateX(0)" : "translateX(-100%)",
           transition: "transform 0.3s ease",
           display: "flex",
           flexDirection: "column",
@@ -2918,7 +2899,10 @@ export default function Home() {
         <button
           type="button"
           className="osu-display-font"
-          onClick={() => setDatingPanelOpen(false)}
+          onClick={() => {
+            setShowBreakupConfirm(false);
+            setDatingPanelOpen(false);
+          }}
           style={{
             flexShrink: 0,
             width: "100%",
@@ -3104,7 +3088,7 @@ export default function Home() {
               <button
                 type="button"
                 className="osu-display-font"
-                onClick={handleBreakUpFromDatingPanel}
+                onClick={() => setShowBreakupConfirm(true)}
                 style={{
                   width: "100%",
                   padding: "14px 14px",
@@ -3123,6 +3107,165 @@ export default function Home() {
           ) : null}
         </div>
       </aside>
+
+      {showBreakupConfirm && currentSoulmate ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="breakup-confirm-title"
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            background: "rgba(0,0,0,0.7)",
+            zIndex: 100,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+            boxSizing: "border-box",
+          }}
+        >
+          <div
+            style={{
+              background: "#1A1A1A",
+              borderRadius: 16,
+              padding: 32,
+              maxWidth: 320,
+              width: "100%",
+              textAlign: "center",
+              border: "1px solid #991B1B",
+              boxSizing: "border-box",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "2.75rem",
+                lineHeight: 1,
+                marginBottom: 16,
+              }}
+              aria-hidden
+            >
+              💔
+            </div>
+            <h2
+              id="breakup-confirm-title"
+              className="osu-display-font"
+              style={{
+                margin: "0 0 12px",
+                color: "#FFFFFF",
+                fontSize: PANEL_H2,
+                fontWeight: 800,
+              }}
+            >
+              Are you sure?
+            </h2>
+            <p
+              style={{
+                margin: "0 0 24px",
+                fontSize: 14,
+                lineHeight: 1.45,
+                color: "rgba(255,255,255,0.55)",
+              }}
+            >
+              Breaking up with {currentSoulmate.name} will end your
+              relationship.
+            </p>
+            <div
+              style={{
+                display: "flex",
+                gap: 12,
+                justifyContent: "center",
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                type="button"
+                className="osu-display-font"
+                onClick={confirmBreakUp}
+                style={{
+                  flex: "1 1 120px",
+                  padding: "12px 14px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#991B1B",
+                  color: "#FFFFFF",
+                  fontSize: PANEL_FS,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Yes, break up
+              </button>
+              <button
+                type="button"
+                className="osu-display-font"
+                onClick={() => setShowBreakupConfirm(false)}
+                style={{
+                  flex: "1 1 120px",
+                  padding: "12px 14px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#333333",
+                  color: "#FFFFFF",
+                  fontSize: PANEL_FS,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Never mind
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {gamePhase === "picking" && !isGeneratingStory ? (
+        <button
+          type="button"
+          className="osu-display-font osu-display-font--micro"
+          onClick={openDatingPanel}
+          aria-label="Open dating"
+          style={{
+            position: "fixed",
+            bottom: 24,
+            right: 24,
+            zIndex: 20,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "12px 20px",
+            borderRadius: 30,
+            border: "none",
+            background: "#E91E8C",
+            color: "#FFFFFF",
+            cursor: "pointer",
+            boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
+          }}
+        >
+          {currentSoulmate ? (
+            <span
+              aria-hidden
+              style={{
+                position: "absolute",
+                top: 8,
+                right: 12,
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                background: "#FFFFFF",
+                boxShadow: "0 0 0 2px #E91E8C",
+              }}
+            />
+          ) : null}
+          <span style={{ fontSize: "1.15rem", lineHeight: 1 }} aria-hidden>
+            ❤️
+          </span>
+          <span style={{ fontWeight: 700, fontSize: PANEL_FS }}>Dating</span>
+        </button>
+      ) : null}
 
       {gamePhase === "picking" && !isGeneratingStory ? (
         <div
