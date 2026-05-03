@@ -17,6 +17,11 @@ import {
   FIRST_PARTY_COKE_SCENARIO_ID,
   KALSHI_STREAKER_SCENARIO,
   KALSHI_STREAKER_SCENARIO_ID,
+  shopItemStacksOnPurchase,
+  shopItemAllowsQuickSell,
+  playerOwnsAnyFakeIdAsset,
+  computeNetWorth,
+  computeQuickSellPayout,
 } from "./lib/gameData.js";
 import {
   applyWeek,
@@ -59,6 +64,13 @@ type FakeIdRisk = "none" | "high" | "low";
 type ActivePerk = {
   shopItemId: string;
   weeklyBonus: Record<string, number> | null;
+};
+
+type OwnedAssetEntry = {
+  instanceId: string;
+  shopItemId: string;
+  name: string;
+  purchasePrice: number;
 };
 
 type WeekHistoryEventSnippet = { title: string; description: string };
@@ -302,6 +314,7 @@ export default function Home() {
   const [activitiesPanelOpen, setActivitiesPanelOpen] = useState(false);
   const [careerPanelOpen, setCareerPanelOpen] = useState(false);
   const [shopPanelOpen, setShopPanelOpen] = useState(false);
+  const [assetsPanelOpen, setAssetsPanelOpen] = useState(false);
   const [money, setMoney] = useState(500);
   const [fakeidRisk, setFakeidRisk] = useState<FakeIdRisk>("none");
   const [fakeIdConfirmItemId, setFakeIdConfirmItemId] = useState<string | null>(
@@ -309,6 +322,7 @@ export default function Home() {
   );
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [ownedShopIds, setOwnedShopIds] = useState<string[]>([]);
+  const [ownedAssets, setOwnedAssets] = useState<OwnedAssetEntry[]>([]);
   const [activePerks, setActivePerks] = useState<ActivePerk[]>([]);
   const [usedScenarioIds, setUsedScenarioIds] = useState<string[]>([]);
   const [pendingApiScenario, setPendingApiScenario] =
@@ -393,11 +407,13 @@ export default function Home() {
           setActivitiesPanelOpen(false);
           setCareerPanelOpen(false);
           setShopPanelOpen(false);
+          setAssetsPanelOpen(false);
           setMoney(500);
           setFakeidRisk("none");
           setFakeIdConfirmItemId(null);
           setActiveJobId(null);
           setOwnedShopIds([]);
+          setOwnedAssets([]);
           setActivePerks([]);
           setUsedScenarioIds([]);
           setPendingApiScenario(null);
@@ -802,6 +818,7 @@ export default function Home() {
     setActivitiesPanelOpen(false);
     setCareerPanelOpen(false);
     setShopPanelOpen(false);
+    setAssetsPanelOpen(false);
     setSummaryPanelOpen(false);
     setPendingApiScenario(null);
 
@@ -917,6 +934,7 @@ export default function Home() {
       setActivitiesPanelOpen(false);
       setCareerPanelOpen(false);
       setShopPanelOpen(false);
+      setAssetsPanelOpen(false);
       setSummaryPanelOpen(false);
       setWeeklyPurchases([]);
       setWeeklyShopSpend(0);
@@ -933,6 +951,7 @@ export default function Home() {
       setActivitiesPanelOpen(false);
       setCareerPanelOpen(false);
       setShopPanelOpen(false);
+      setAssetsPanelOpen(false);
       setSummaryPanelOpen(false);
       setWeeklyPurchases([]);
       setWeeklyShopSpend(0);
@@ -1037,6 +1056,7 @@ export default function Home() {
   function openActivitiesPanel() {
     setCareerPanelOpen(false);
     setShopPanelOpen(false);
+    setAssetsPanelOpen(false);
     setSummaryPanelOpen(false);
     setActivitiesPanelOpen(true);
   }
@@ -1044,6 +1064,7 @@ export default function Home() {
   function openCareerPanel() {
     setActivitiesPanelOpen(false);
     setShopPanelOpen(false);
+    setAssetsPanelOpen(false);
     setSummaryPanelOpen(false);
     setCareerPanelOpen(true);
   }
@@ -1051,18 +1072,28 @@ export default function Home() {
   function openShopPanel() {
     setActivitiesPanelOpen(false);
     setCareerPanelOpen(false);
+    setAssetsPanelOpen(false);
     setSummaryPanelOpen(false);
     setShopPanelOpen(true);
+  }
+
+  function openAssetsPanel() {
+    setActivitiesPanelOpen(false);
+    setCareerPanelOpen(false);
+    setShopPanelOpen(false);
+    setSummaryPanelOpen(false);
+    setAssetsPanelOpen(true);
   }
 
   function openSummaryPanel() {
     setActivitiesPanelOpen(false);
     setCareerPanelOpen(false);
     setShopPanelOpen(false);
+    setAssetsPanelOpen(false);
     setSummaryPanelOpen(true);
   }
 
-  function showShopPurchaseToast(item: (typeof SHOP)[number]) {
+  function showHudToast(fullMessage: string) {
     if (toastDismissTimerRef.current) {
       clearTimeout(toastDismissTimerRef.current);
       toastDismissTimerRef.current = null;
@@ -1071,12 +1102,6 @@ export default function Home() {
       clearTimeout(toastRemoveTimerRef.current);
       toastRemoveTimerRef.current = null;
     }
-
-    const rawEffect = (item.effect ?? {}) as Record<string, number>;
-    const statLine = formatShopToastStatLine(rawEffect);
-    const fullMessage = statLine
-      ? `Bought ${item.name}! ${statLine}`
-      : `Bought ${item.name}!`;
 
     setToast((prev) => {
       if (prev.visible && prev.message) {
@@ -1103,7 +1128,29 @@ export default function Home() {
     }, 2500);
   }
 
+  function showShopPurchaseToast(item: (typeof SHOP)[number]) {
+    const rawEffect = (item.effect ?? {}) as Record<string, number>;
+    const statLine = formatShopToastStatLine(rawEffect);
+    const fullMessage = statLine
+      ? `Bought ${item.name}! ${statLine}`
+      : `Bought ${item.name}!`;
+    showHudToast(fullMessage);
+  }
+
   function completeShopPurchase(item: (typeof SHOP)[number]) {
+    const instanceId =
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `a-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+    setOwnedAssets((prev) => [
+      ...prev,
+      {
+        instanceId,
+        shopItemId: item.id,
+        name: item.name,
+        purchasePrice: item.cost,
+      },
+    ]);
     setMoney((m) => clampMoney(m - item.cost));
     setWeeklyShopSpend((n) => n + item.cost);
     setWeeklyPurchases((prev) => [...prev, item.name]);
@@ -1127,8 +1174,14 @@ export default function Home() {
     const item = SHOP.find((i) => i.id === itemId);
     if (!item) return;
     if (money < item.cost) return;
-    if (!item.isOneTime && ownedShopIds.includes(itemId)) return;
+    if (
+      !shopItemStacksOnPurchase(item) &&
+      !item.isOneTime &&
+      ownedShopIds.includes(itemId)
+    )
+      return;
     if (!shopItemPassesAgeGate(item, currentYear, fakeidRisk)) return;
+    if (item.isFakeId && playerOwnsAnyFakeIdAsset(ownedAssets)) return;
 
     if (item.isFakeId) {
       setFakeIdConfirmItemId(itemId);
@@ -1138,11 +1191,34 @@ export default function Home() {
     completeShopPurchase(item);
   }
 
+  function quickSellAsset(instanceId: string) {
+    const row = ownedAssets.find((a) => a.instanceId === instanceId);
+    if (!row) return;
+    const item = SHOP.find((i) => i.id === row.shopItemId);
+    if (!item || !shopItemAllowsQuickSell(item)) return;
+    const nextList = ownedAssets.filter((a) => a.instanceId !== instanceId);
+    const payout = computeQuickSellPayout(row.purchasePrice);
+    setOwnedAssets(nextList);
+    setMoney((m) => clampMoney(m + payout));
+    if (item.weeklyBonus && !shopItemStacksOnPurchase(item)) {
+      const stillHas = nextList.filter((a) => a.shopItemId === item.id).length;
+      if (stillHas === 0) {
+        setOwnedShopIds((prev) => prev.filter((id) => id !== item.id));
+        setActivePerks((prev) => prev.filter((p) => p.shopItemId !== item.id));
+      }
+    }
+    showHudToast(`Sold ${row.name} for $${payout}`);
+  }
+
   function confirmFakeIdPurchase() {
     const id = fakeIdConfirmItemId;
     if (!id) return;
     const item = SHOP.find((i) => i.id === id);
     if (!item?.isFakeId) {
+      setFakeIdConfirmItemId(null);
+      return;
+    }
+    if (playerOwnsAnyFakeIdAsset(ownedAssets)) {
       setFakeIdConfirmItemId(null);
       return;
     }
@@ -1158,8 +1234,11 @@ export default function Home() {
     setFakeIdConfirmItemId(null);
   }
 
-  const shopMainItems = SHOP.filter((i) => i.category !== "underground");
+  const shopRegularItems = SHOP.filter((i) => i.category === "shop");
+  const shopTransportItems = SHOP.filter((i) => i.category === "transport");
   const shopUnderground = SHOP.filter((i) => i.category === "underground");
+  const fakeIdSoldOut = playerOwnsAnyFakeIdAsset(ownedAssets);
+  const netWorth = computeNetWorth(money, ownedAssets);
 
   if (gamePhase === "scenario" && activeScenario) {
     return (
@@ -1426,6 +1505,14 @@ export default function Home() {
           style={hudBtn}
         >
           Shop
+        </button>
+        <button
+          type="button"
+          className="osu-display-font osu-display-font--micro osu-hud-panel-btn"
+          onClick={openAssetsPanel}
+          style={hudBtn}
+        >
+          Assets
         </button>
         <button
           type="button"
@@ -1724,7 +1811,7 @@ export default function Home() {
           >
             Shop
           </h2>
-          {shopMainItems.map((item) => {
+          {shopRegularItems.map((item) => {
             const ownedOngoing = !item.isOneTime && ownedShopIds.includes(item.id);
             const canAfford = money >= item.cost;
             const ageOk = shopItemPassesAgeGate(item, currentYear, fakeidRisk);
@@ -1860,6 +1947,97 @@ export default function Home() {
             style={{
               margin: "20px 0 10px",
               fontSize: "clamp(0.5rem, 2vw, 0.65rem)",
+              color: "#93C5FD",
+            }}
+          >
+            Transport
+          </h3>
+          {shopTransportItems.map((item) => {
+            const canAfford = money >= item.cost;
+            const ageOk = shopItemPassesAgeGate(item, currentYear, fakeidRisk);
+            const canBuy = canAfford && ageOk;
+            return (
+              <div
+                key={item.id}
+                style={{
+                  marginBottom: 12,
+                  padding: 12,
+                  borderRadius: 10,
+                  background: "rgba(59,130,246,0.08)",
+                  border: "1px solid rgba(147,197,253,0.25)",
+                  opacity: canBuy ? 1 : 0.45,
+                }}
+              >
+                <div
+                  className="osu-display-font"
+                  style={{
+                    fontSize: "clamp(0.48rem, 2vw, 0.62rem)",
+                    color: "#FFFFFF",
+                    marginBottom: 6,
+                  }}
+                >
+                  {item.name}
+                </div>
+                <p
+                  style={{
+                    margin: "0 0 8px",
+                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
+                    lineHeight: 1.45,
+                    opacity: 0.9,
+                  }}
+                >
+                  {item.description}
+                </p>
+                <div
+                  style={{
+                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
+                    marginBottom: 6,
+                    color: "#93C5FD",
+                    fontWeight: 700,
+                  }}
+                >
+                  ${item.cost}
+                </div>
+                <div
+                  style={{
+                    fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+                    marginBottom: 8,
+                    opacity: 0.88,
+                  }}
+                >
+                  Now: {formatStatDelta(item.effect)}
+                </div>
+                <button
+                  type="button"
+                  className="osu-display-font"
+                  disabled={!canBuy}
+                  onClick={() => buyShopItem(item.id)}
+                  style={{
+                    width: "100%",
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: !canBuy ? "rgba(120,120,120,0.35)" : "#2563EB",
+                    color: "#FFFFFF",
+                    cursor: !canBuy ? "not-allowed" : "pointer",
+                    fontSize: "clamp(0.4rem, 1.6vw, 0.52rem)",
+                  }}
+                >
+                  {!ageOk
+                    ? "Underage"
+                    : !canAfford
+                      ? "Cannot afford"
+                      : "Buy"}
+                </button>
+              </div>
+            );
+          })}
+
+          <h3
+            className="osu-display-font"
+            style={{
+              margin: "20px 0 10px",
+              fontSize: "clamp(0.5rem, 2vw, 0.65rem)",
               color: "#FCA5A5",
             }}
           >
@@ -1887,6 +2065,8 @@ export default function Home() {
           </p>
           {shopUnderground.map((item) => {
             const canAfford = money >= item.cost;
+            const soldOut = Boolean(item.isFakeId && fakeIdSoldOut);
+            const canBuyUnderground = canAfford && !soldOut;
             return (
               <div
                 key={item.id}
@@ -1896,7 +2076,7 @@ export default function Home() {
                   borderRadius: 10,
                   background: "rgba(127, 29, 29, 0.12)",
                   border: "1px solid rgba(248, 113, 113, 0.35)",
-                  opacity: canAfford ? 1 : 0.45,
+                  opacity: canBuyUnderground ? 1 : 0.45,
                 }}
               >
                 <div
@@ -1954,24 +2134,207 @@ export default function Home() {
                 <button
                   type="button"
                   className="osu-display-font"
-                  disabled={!canAfford}
+                  disabled={!canBuyUnderground}
                   onClick={() => buyShopItem(item.id)}
                   style={{
                     width: "100%",
                     padding: "8px 10px",
                     borderRadius: 8,
                     border: "none",
-                    background: !canAfford ? "rgba(120,120,120,0.35)" : "#B91C1C",
+                    background: !canBuyUnderground
+                      ? "rgba(120,120,120,0.35)"
+                      : "#B91C1C",
                     color: "#FFFFFF",
-                    cursor: !canAfford ? "not-allowed" : "pointer",
+                    cursor: !canBuyUnderground ? "not-allowed" : "pointer",
                     fontSize: "clamp(0.4rem, 1.6vw, 0.52rem)",
                   }}
                 >
-                  {canAfford ? "Buy (confirm risk)" : "Cannot afford"}
+                  {soldOut
+                    ? "Sold Out"
+                    : canAfford
+                      ? "Buy (confirm risk)"
+                      : "Cannot afford"}
                 </button>
               </div>
             );
           })}
+        </div>
+      </aside>
+
+      <aside
+        aria-hidden={!assetsPanelOpen}
+        style={{
+          position: "fixed",
+          right: 0,
+          top: 0,
+          width: 340,
+          height: "100vh",
+          zIndex: 30,
+          background: "#1A1A1A",
+          transform: assetsPanelOpen ? "translateX(0)" : "translateX(100%)",
+          transition: "transform 0.3s ease",
+          display: "flex",
+          flexDirection: "column",
+          boxSizing: "border-box",
+          pointerEvents: assetsPanelOpen ? "auto" : "none",
+        }}
+      >
+        <button
+          type="button"
+          className="osu-display-font"
+          onClick={() => setAssetsPanelOpen(false)}
+          style={{
+            flexShrink: 0,
+            width: "100%",
+            padding: "12px 14px",
+            textAlign: "left",
+            background: "rgba(0, 0, 0, 0.25)",
+            color: "#FFFFFF",
+            border: "none",
+            borderBottom: "1px solid rgba(255, 255, 255, 0.12)",
+            cursor: "pointer",
+            fontSize: "clamp(0.45rem, 2vw, 0.62rem)",
+          }}
+        >
+          ◀ Close
+        </button>
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+            padding: "12px 14px 24px",
+            color: "#E8E8E8",
+          }}
+        >
+          <h2
+            className="osu-display-font"
+            style={{
+              margin: "0 0 12px",
+              fontSize: "clamp(0.55rem, 2.2vw, 0.75rem)",
+              color: "#FFFFFF",
+            }}
+          >
+            Assets
+          </h2>
+          <div
+            style={{
+              marginBottom: 16,
+              padding: "12px 14px",
+              borderRadius: 10,
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.12)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+                opacity: 0.85,
+                marginBottom: 4,
+              }}
+            >
+              Net Worth
+            </div>
+            <div
+              className="osu-display-font"
+              style={{
+                fontSize: "clamp(0.55rem, 2.2vw, 0.8rem)",
+                color: "#1D9E75",
+                fontWeight: 800,
+              }}
+            >
+              ${netWorth.toLocaleString()}
+            </div>
+            <p
+              style={{
+                margin: "8px 0 0",
+                fontSize: "clamp(0.32rem, 1.25vw, 0.42rem)",
+                lineHeight: 1.45,
+                opacity: 0.75,
+              }}
+            >
+              Cash plus recorded purchase prices of everything you own (not
+              quick-sell value).
+            </p>
+          </div>
+          {ownedAssets.length === 0 ? (
+            <p
+              style={{
+                margin: 0,
+                fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
+                opacity: 0.75,
+              }}
+            >
+              Nothing in your inventory yet — hit the Shop to buy gear.
+            </p>
+          ) : (
+            ownedAssets.map((asset) => {
+              const def = SHOP.find((s) => s.id === asset.shopItemId);
+              const sellable = Boolean(def && shopItemAllowsQuickSell(def));
+              const sellPrice = computeQuickSellPayout(asset.purchasePrice);
+              return (
+                <div
+                  key={asset.instanceId}
+                  style={{
+                    marginBottom: 12,
+                    padding: 12,
+                    borderRadius: 10,
+                    background: "rgba(255,255,255,0.06)",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                  }}
+                >
+                  <div
+                    className="osu-display-font"
+                    style={{
+                      fontSize: "clamp(0.48rem, 2vw, 0.62rem)",
+                      color: "#FFFFFF",
+                      marginBottom: 6,
+                    }}
+                  >
+                    {asset.name}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+                      marginBottom: 8,
+                      color: "#A3A3A3",
+                    }}
+                  >
+                    Paid ${asset.purchasePrice.toLocaleString()}
+                  </div>
+                  {sellable ? (
+                    <button
+                      type="button"
+                      className="osu-display-font"
+                      onClick={() => quickSellAsset(asset.instanceId)}
+                      style={{
+                        width: "100%",
+                        padding: "8px 10px",
+                        borderRadius: 8,
+                        border: "none",
+                        background: "#D73F09",
+                        color: "#FFFFFF",
+                        cursor: "pointer",
+                        fontSize: "clamp(0.4rem, 1.6vw, 0.52rem)",
+                      }}
+                    >
+                      Quick Sell (${sellPrice.toLocaleString()})
+                    </button>
+                  ) : (
+                    <span
+                      style={{
+                        fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+                        fontStyle: "italic",
+                        opacity: 0.75,
+                      }}
+                    >
+                      Non-sellable
+                    </span>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
       </aside>
 

@@ -262,7 +262,7 @@ export function shopItemPassesAgeGate(item, currentYear, fakeidRisk) {
  *   effect: StatDelta;
  *   isOneTime: boolean;
  *   weeklyBonus: StatDelta | null;
- *   category?: "shop" | "underground";
+ *   category?: "shop" | "underground" | "transport";
  *   isFakeId?: boolean;
  *   fakeidRisk?: "high" | "low";
  *   minLegalPurchaseYear?: number;
@@ -391,6 +391,46 @@ export const SHOP = [
     category: "shop",
   },
   {
+    id: "bike",
+    name: "Bike",
+    description: "Gets you around campus faster.",
+    cost: 100,
+    effect: { health: 3 },
+    isOneTime: true,
+    weeklyBonus: null,
+    category: "transport",
+  },
+  {
+    id: "low-car",
+    name: "Used Civic",
+    description: "Low end but it runs.",
+    cost: 1000,
+    effect: { social: 1 },
+    isOneTime: true,
+    weeklyBonus: null,
+    category: "transport",
+  },
+  {
+    id: "mid-car",
+    name: "Honda Accord",
+    description: "Respectable. People notice.",
+    cost: 6000,
+    effect: { social: 6 },
+    isOneTime: true,
+    weeklyBonus: null,
+    category: "transport",
+  },
+  {
+    id: "luxury-car",
+    name: "BMW 3 Series",
+    description: "You pull up different now.",
+    cost: 25000,
+    effect: { social: 15 },
+    isOneTime: true,
+    weeklyBonus: null,
+    category: "transport",
+  },
+  {
     id: "underground-fake-id-cheap",
     name: 'Cheap Fake ID from “some guy on Reddit”',
     description:
@@ -417,6 +457,45 @@ export const SHOP = [
     fakeidRisk: "low",
   },
 ];
+
+/** Transport gear — multiple purchases stack immediate stat effects. */
+export function shopItemStacksOnPurchase(item) {
+  return Boolean(item && item.category === "transport");
+}
+
+/** Fake IDs cannot be quick-sold from the Assets tab. */
+export function shopItemAllowsQuickSell(item) {
+  return Boolean(item) && !item.isFakeId;
+}
+
+/** True if the player already owns any fake ID (only one fake ID per playthrough). */
+export function playerOwnsAnyFakeIdAsset(ownedAssets) {
+  if (!Array.isArray(ownedAssets)) return false;
+  return ownedAssets.some((row) => {
+    const def = SHOP.find((s) => s.id === row.shopItemId);
+    return Boolean(def?.isFakeId);
+  });
+}
+
+export function sumOwnedAssetPurchasePrices(ownedAssets) {
+  if (!Array.isArray(ownedAssets)) return 0;
+  return ownedAssets.reduce((sum, row) => {
+    const n = Number(row?.purchasePrice);
+    return sum + (Number.isFinite(n) ? n : 0);
+  }, 0);
+}
+
+/** Cash on hand plus 100% of recorded asset purchase prices (not quick-sell value). */
+export function computeNetWorth(cash, ownedAssets) {
+  const m = Math.round(Number(cash));
+  const safe = Number.isFinite(m) ? m : 0;
+  return safe + sumOwnedAssetPurchasePrices(ownedAssets);
+}
+
+/** Quick sell pays 80% of original purchase price, floored. */
+export function computeQuickSellPayout(purchasePrice) {
+  return Math.floor(Number(purchasePrice) * 0.8);
+}
 
 /**
  * Fake-ID arrest weekly roll (separate from {@link getRandEvent}).
