@@ -24,7 +24,7 @@ function extractTextFromAnthropicResponse(data) {
 export async function anthropicMessagesComplete(
   userPrompt,
   maxTokens,
-  model = "claude-sonnet-4-20250514",
+  model = "claude-sonnet-4-5",
 ) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey || apiKey === "your-key-here") {
