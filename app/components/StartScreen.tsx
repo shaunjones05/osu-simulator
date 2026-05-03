@@ -26,7 +26,7 @@ export default function StartScreen({ onStart }: StartScreenProps) {
     boxSizing: "border-box",
     padding: "24px",
     fontFamily:
-      'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+      'var(--font-body), Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
   };
 
   const card: CSSProperties = {
@@ -37,11 +37,8 @@ export default function StartScreen({ onStart }: StartScreenProps) {
 
   const title: CSSProperties = {
     margin: "0 0 12px",
-    fontSize: "2.25rem",
-    fontWeight: 700,
-    letterSpacing: "-0.02em",
     color: ORANGE,
-    lineHeight: 1.15,
+    lineHeight: 1.2,
   };
 
   const subtitle: CSSProperties = {
@@ -92,7 +89,9 @@ export default function StartScreen({ onStart }: StartScreenProps) {
   return (
     <div style={outer}>
       <div style={card}>
-        <h1 style={title}>OSU Simulator</h1>
+        <h1 className="osu-display-font osu-display-font--hero" style={title}>
+          OSU Simulator
+        </h1>
         <p style={subtitle}>Survive 4 years at Oregon State</p>
         <input
           id="player-name"

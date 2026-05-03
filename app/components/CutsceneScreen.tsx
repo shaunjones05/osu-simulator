@@ -1,13 +1,7 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import { Press_Start_2P } from "next/font/google";
 import type { WeekStats } from "./WeekSummary";
-
-const pixelFont = Press_Start_2P({
-  weight: "400",
-  subsets: ["latin"],
-});
 
 const ORANGE = "#D73F09";
 const BG = "#1A1A1A";
@@ -55,7 +49,7 @@ export default function CutsceneScreen({
   onContinue,
 }: CutsceneScreenProps) {
   const baseFont =
-    'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+    'var(--font-body), Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
 
   if (isLoading) {
     const outer: CSSProperties = {
@@ -71,33 +65,18 @@ export default function CutsceneScreen({
       padding: 24,
     };
 
-    const loadingText: CSSProperties = {
-      fontSize: "clamp(0.65rem, 2.5vw, 1rem)",
-      lineHeight: 1.6,
-      textAlign: "center",
-      maxWidth: "min(90vw, 28rem)",
-    };
-
     return (
-      <>
-        <style>{`
-          @keyframes cutscene-loading-pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.42; }
-          }
-          .cutscene-loading-pulse {
-            animation: cutscene-loading-pulse 1.25s ease-in-out infinite;
-          }
-        `}</style>
-        <div style={outer}>
-          <p
-            className={`${pixelFont.className} cutscene-loading-pulse`}
-            style={loadingText}
-          >
-            Simming to next week...
-          </p>
-        </div>
-      </>
+      <div style={outer}>
+        <p
+          className="osu-display-font osu-display-font--hero osu-simming-pulse"
+          style={{
+            textAlign: "center",
+            maxWidth: "min(90vw, 28rem)",
+          }}
+        >
+          Simming to next week...
+        </p>
+      </div>
     );
   }
 
@@ -158,14 +137,6 @@ export default function CutsceneScreen({
     marginBottom: "0.5rem",
   };
 
-  const eventTitle: CSSProperties = {
-    fontWeight: 700,
-    fontSize: "1.05rem",
-    color: "#FFFFFF",
-    marginBottom: "0.45rem",
-    lineHeight: 1.3,
-  };
-
   const eventDesc: CSSProperties = {
     fontSize: "0.9rem",
     color: "rgba(255, 255, 255, 0.82)",
@@ -218,6 +189,7 @@ export default function CutsceneScreen({
     cursor: "pointer",
     backgroundColor: ORANGE,
     color: "#FFFFFF",
+    fontFamily: baseFont,
   };
 
   const sceneSrc =
@@ -226,7 +198,10 @@ export default function CutsceneScreen({
   return (
     <div style={shell}>
       <div style={inner}>
-        <div style={meta}>
+        <div
+          className="osu-display-font osu-display-font--micro"
+          style={meta}
+        >
           Year {year} · Week {week}
         </div>
 
@@ -251,7 +226,12 @@ export default function CutsceneScreen({
         {extraEvent ? (
           <div style={eventBox}>
             <div style={eventLabel}>This week at OSU:</div>
-            <div style={eventTitle}>{extraEvent.title}</div>
+            <div
+              className="osu-display-font osu-display-font--title"
+              style={{ marginBottom: "0.45rem", color: "#FFFFFF" }}
+            >
+              {extraEvent.title}
+            </div>
             <div style={eventDesc}>{extraEvent.description}</div>
           </div>
         ) : null}

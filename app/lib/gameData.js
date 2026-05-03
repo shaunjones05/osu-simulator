@@ -6,6 +6,7 @@ export const ACTIVITIES = [
     name: "Study at Valley Library",
     location: "Valley Library, Oregon State University",
     epCost: 3,
+    sceneImage: "library.png",
     effects: { gpa: 8, health: -2, happiness: -1, social: 0 },
   },
   {
@@ -13,6 +14,7 @@ export const ACTIVITIES = [
     name: "Attend class at Cordley Hall",
     location: "Cordley Hall, Oregon State University",
     epCost: 2,
+    sceneImage: "kelley.png",
     effects: { gpa: 5, health: 0, happiness: 0, social: 2 },
   },
   {
@@ -20,6 +22,7 @@ export const ACTIVITIES = [
     name: "Gym at Dixon Rec Center",
     location: "Dixon Recreation Center, Oregon State University",
     epCost: 3,
+    sceneImage: "gym.png",
     effects: { gpa: 0, health: 10, happiness: 3, social: 2 },
   },
   {
@@ -27,6 +30,7 @@ export const ACTIVITIES = [
     name: "Frat party on 26th Street",
     location: "Greek Row (26th Street), Corvallis",
     epCost: 3,
+    sceneImage: "party.png",
     effects: { gpa: -3, health: -5, happiness: 10, social: 10 },
   },
   {
@@ -34,6 +38,7 @@ export const ACTIVITIES = [
     name: "Football game at Reser Stadium",
     location: "Reser Stadium, Oregon State University",
     epCost: 2,
+    sceneImage: "stadium.png",
     effects: { gpa: 0, health: 0, happiness: 8, social: 8 },
   },
   {
@@ -41,6 +46,7 @@ export const ACTIVITIES = [
     name: "Eat at Arnold Dining Hall",
     location: "Arnold Dining Hall, Oregon State University",
     epCost: 1,
+    sceneImage: "dining.png",
     effects: { gpa: 0, health: 5, happiness: 3, social: 2 },
   },
   {
@@ -48,6 +54,7 @@ export const ACTIVITIES = [
     name: "Downward Dog Tiki Tuesday",
     location: "Downward Dog, Corvallis",
     epCost: 2,
+    sceneImage: "tiki.png",
     effects: { gpa: -1, health: 3, happiness: 8, social: 8 },
   },
   {
@@ -55,6 +62,7 @@ export const ACTIVITIES = [
     name: "Late night Rivas Taco Shop",
     location: "Rivas Taco Shop, Corvallis",
     epCost: 1,
+    sceneImage: "rivas.png",
     effects: { gpa: 0, health: 3, happiness: 7, social: 4 },
   },
   {
@@ -62,6 +70,7 @@ export const ACTIVITIES = [
     name: "Sleep in",
     location: "On-campus housing, Corvallis",
     epCost: 1,
+    sceneImage: "dorm.png",
     effects: { gpa: 1, health: 6, happiness: 2, social: 0 },
   },
   {
@@ -69,6 +78,7 @@ export const ACTIVITIES = [
     name: "Join a club at MU",
     location: "Memorial Union (MU), Oregon State University",
     epCost: 3,
+    sceneImage: "stadium.png",
     effects: { gpa: 1, health: 0, happiness: 4, social: 7 },
   },
   {
@@ -76,6 +86,7 @@ export const ACTIVITIES = [
     name: "Study group at Kelley Engineering Center",
     location: "Kelley Engineering Center, Oregon State University",
     epCost: 3,
+    sceneImage: "kelley.png",
     effects: { gpa: 7, health: 0, happiness: 2, social: 4 },
   },
 ];

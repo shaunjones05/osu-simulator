@@ -48,7 +48,7 @@ export default function Home() {
     color: "#FFFFFF",
     padding: 24,
     fontFamily:
-      'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+      'var(--font-body), Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
   };
 
   const header: CSSProperties = {
@@ -58,14 +58,13 @@ export default function Home() {
   };
 
   const titleRow: CSSProperties = {
-    fontSize: "1.25rem",
-    fontWeight: 600,
+    fontSize: "1.2rem",
+    fontWeight: 700,
     marginBottom: 6,
   };
 
   const metaRow: CSSProperties = {
-    fontSize: "0.95rem",
-    opacity: 0.9,
+    opacity: 0.92,
   };
 
   const cutscenePlaceholder: CSSProperties = {
@@ -81,7 +80,10 @@ export default function Home() {
     <div style={shell}>
       <header style={header}>
         <div style={titleRow}>{playerName || "Player"}</div>
-        <div style={metaRow}>
+        <div
+          className="osu-display-font osu-display-font--micro"
+          style={metaRow}
+        >
           Year {currentYear} · Week {currentWeek}
         </div>
       </header>

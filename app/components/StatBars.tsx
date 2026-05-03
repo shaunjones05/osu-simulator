@@ -34,6 +34,10 @@ const ORDER: (keyof StatBarsStats)[] = [
   "social",
 ];
 
+const easeAll: CSSProperties = {
+  transition: "all 0.4s ease",
+};
+
 function clamp100(n: number): number {
   return Math.min(100, Math.max(0, n));
 }
@@ -41,6 +45,7 @@ function clamp100(n: number): number {
 export default function StatBars({ stats }: StatBarsProps) {
   const rowWrap: CSSProperties = {
     marginBottom: 16,
+    ...easeAll,
   };
 
   const rowHeader: CSSProperties = {
@@ -49,18 +54,21 @@ export default function StatBars({ stats }: StatBarsProps) {
     justifyContent: "space-between",
     marginBottom: 6,
     fontFamily:
-      'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+      'var(--font-body), Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
     fontSize: "0.9rem",
+    ...easeAll,
   };
 
   const labelStyle: CSSProperties = {
     color: "#FFFFFF",
     fontWeight: 600,
+    ...easeAll,
   };
 
   const valueStyle: CSSProperties = {
     color: "rgba(255, 255, 255, 0.9)",
     fontVariantNumeric: "tabular-nums",
+    ...easeAll,
   };
 
   const track: CSSProperties = {
@@ -68,13 +76,14 @@ export default function StatBars({ stats }: StatBarsProps) {
     borderRadius: 5,
     backgroundColor: TRACK_BG,
     overflow: "hidden",
+    ...easeAll,
   };
 
   const fillBase: CSSProperties = {
     height: "100%",
     borderRadius: 5,
-    transition: "width 0.45s ease-out",
     width: "0%",
+    ...easeAll,
   };
 
   return (
@@ -83,7 +92,7 @@ export default function StatBars({ stats }: StatBarsProps) {
         width: "100%",
         maxWidth: 480,
         fontFamily:
-          'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+          'var(--font-body), Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
       }}
     >
       {ORDER.map((key) => {

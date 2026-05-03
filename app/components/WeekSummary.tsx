@@ -127,7 +127,10 @@ export default function WeekSummary({
 
   return (
     <div style={root}>
-      <header style={header}>
+      <header
+        className="osu-display-font osu-display-font--title"
+        style={header}
+      >
         Week {week} — Year {year} Complete
       </header>
 
