@@ -9,6 +9,8 @@ export type StatBarsStats = {
 
 export type StatBarsProps = {
   stats: StatBarsStats;
+  /** When true, GPA shows "NA" and an empty bar (internal gpa can still be used for sim). */
+  gpaAsNA?: boolean;
 };
 
 const TRACK_BG = "#333333";
@@ -38,7 +40,7 @@ function clamp100(n: number): number {
   return Math.min(100, Math.max(0, n));
 }
 
-export default function StatBars({ stats }: StatBarsProps) {
+export default function StatBars({ stats, gpaAsNA = false }: StatBarsProps) {
   const rowWrap: CSSProperties = {
     marginBottom: 16,
   };
@@ -88,15 +90,19 @@ export default function StatBars({ stats }: StatBarsProps) {
     >
       {ORDER.map((key) => {
         const raw = clamp100(stats[key]);
+        const isGpaNA = key === "gpa" && gpaAsNA;
+        const barWidth = isGpaNA ? 0 : raw;
         const fill: CSSProperties = {
           ...fillBase,
-          width: `${raw}%`,
+          width: `${barWidth}%`,
           backgroundColor: BAR_COLORS[key],
         };
 
         const displayValue =
           key === "gpa"
-            ? (raw / 25).toFixed(1)
+            ? isGpaNA
+              ? "NA"
+              : (raw / 25).toFixed(1)
             : String(Math.round(raw));
 
         return (
