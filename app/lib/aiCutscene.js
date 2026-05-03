@@ -188,7 +188,7 @@ export function buildCutsceneUserPrompt(
   const money = Math.max(0, Math.round(Number(moneyDollars) || 0));
   const job = typeof jobLine === "string" && jobLine.trim() ? jobLine.trim() : "no part-time job";
 
-  return `The player's name is ${playerName}. They are a ${standing} at Oregon State University in Week ${week} of their college journey. This week they: ${activityText}. Their current stats: GPA ${gpaNow}, Health ${hNow}/100, Happiness ${hapNow}/100, Social ${sNow}/100. When they arrived at OSU in Week 1, their baseline stats were: GPA ${gpaBase}, Health ${hBase}/100, Happiness ${hapBase}/100, Social ${sBase}/100. They currently have $${money} in spending money. Part-time work: ${job}. You may briefly reference money or their job when it fits the week's story (stress of shifts, treating themselves, ramen budget, etc.) but do not lecture about finances. Write a short vivid 3-4 sentence story about their week. Reference real OSU and Corvallis locations by name. Reflect how they have grown or changed since Week 1. Match tone to their current stats — upbeat if stats are high, gritty if declining. No emojis.`;
+  return `The player's name is ${playerName}. They are a ${standing} at Oregon State University in Week ${week} of their college journey. This week they: ${activityText}. Their current stats: GPA ${gpaNow}, Health ${hNow}/100, Happiness ${hapNow}/100, Social ${sNow}/100. When they arrived at OSU in Week 1, their baseline stats were: GPA ${gpaBase}, Health ${hBase}/100, Happiness ${hapBase}/100, Social ${sBase}/100. They currently have $${money} in spending money. Part-time work: ${job}. You may briefly reference money or their job when it fits the week's story (stress of shifts, treating themselves, ramen budget, etc.) but do not lecture about finances. Write 1-2 short simple sentences about their week. Only mention things you are 100% certain are true based on their activities and stats. Do not invent jobs, relationships, supervisors, or specific people. Keep it vague if unsure. Reference OSU or Corvallis locations only if they actually did an activity there. No emojis.`;
 }
 
 /**
@@ -210,18 +210,7 @@ export function buildWeeklyScenarioJsonPrompt(
 ) {
   const standing = yearToClassStanding(year);
   const activityText = formatActivityClause(chosenActivities);
-  return (
-    `Invent one fresh college-life dilemma for "${playerName}", a ${standing} at Oregon State University (Year ${year}, Week ${week}). ` +
-    `This week they: ${activityText}. ` +
-    `Make it specific to OSU / Corvallis, funny but grounded, and not a generic "study vs party" clone unless the situation truly calls for it. ` +
-    `Use this inspiration seed to steer a unique angle (do not quote the seed verbatim): ${uniquenessHint}\n\n` +
-    `Respond with only valid JSON, no markdown fences, in exactly this shape: ` +
-    `{ "title": string, "description": string, "choices": [` +
-    `{ "label": string, "consequence": { "gpa"?: number, "health"?: number, "happiness"?: number, "social"?: number, "message": string } }, ` +
-    `{ "label": string, "consequence": { ... } } ] }. ` +
-    `Use two choices. Consequence stat deltas should be small integers (about -15 to 15). ` +
-    `Each consequence "message" is a reveal shown only after the player chooses. No sexual content.`
-  );
+  return `Invent one college-life dilemma for "${playerName}", a ${standing} at Oregon State University (Year ${year}, Week ${week}). This week they: ${activityText}. Write in this exact style — short, casual, funny, grounded. Examples of the tone and format to match: "Fire alarm at McNary at 3am — sirens, stairs, and half-dressed hallmates on the lawn. Nobody sleeps; nobody wins." and "Ran into your professor at Downward Dog — yoga mats and small talk about the syllabus. Weirdly human." Keep the title punchy and short. Description should be 2 sentences max. Do not write generic study-vs-party dilemmas. Use this seed for a unique angle: ${uniquenessHint}\n\nRespond with only valid JSON, no markdown fences: { "title": string, "description": string, "choices": [{ "label": string, "consequence": { "gpa"?: number, "health"?: number, "happiness"?: number, "social"?: number, "message": string } }, { "label": string, "consequence": { ... } }] }. Two choices only. Stat deltas -15 to 15. No sexual content.`;
 }
 
 /**

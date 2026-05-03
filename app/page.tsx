@@ -9,6 +9,7 @@ import {
   SHOP,
   getSpecialEvent,
   getRandEvent,
+  getBlazersBetResult,
   rollFakeIdArrest,
   jobIsAvailable,
 } from "./lib/gameData.js";
@@ -291,8 +292,17 @@ export default function Home() {
     let extra: CutsceneExtraEvent | null = null;
     const rand = getRandEvent();
     if (rand) {
-      extra = { title: rand.title, description: rand.description };
-      s = normalizeWeekStats(applyStatDelta(s, rand.effect));
+      if ("isBet" in rand && rand.isBet) {
+        const bet = getBlazersBetResult();
+        extra = {
+          title: rand.title,
+          description: `${rand.description}\n\n${bet.message}`,
+        };
+        s = normalizeWeekStats(applyStatDelta(s, bet.effect));
+      } else {
+        extra = { title: rand.title, description: rand.description };
+        s = normalizeWeekStats(applyStatDelta(s, rand.effect));
+      }
     }
 
     const job = activeJobIdAtStart

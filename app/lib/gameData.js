@@ -376,7 +376,7 @@ export function rollFakeIdArrest(fakeidRisk) {
 
 /**
  * Random weekly events (PDR). `effect` is a partial stat delta (0–100 scale).
- * @type {Array<{ id: string; title: string; description: string; effect: StatDelta }>}
+ * @type {Array<{ id: string; title: string; description: string; effect: StatDelta; isBet?: boolean; betAmount?: number }>}
  */
 export const RANDOM_EVENTS = [
   {
@@ -434,6 +434,15 @@ export const RANDOM_EVENTS = [
     description:
       "Gray sky, wet bike seat, and four walls. You mainline screens and miss the sun.",
     effect: { happiness: -5, health: -3 },
+  },
+  {
+    id: "blazers-bet",
+    title: "The Blazers are playing tonight",
+    description:
+      "Your roommate slides their phone across the table. 'Wanna throw $20 on the Blazers?' 50/50. Your call.",
+    effect: { happiness: 0 },
+    isBet: true,
+    betAmount: 20,
   },
 ];
 
@@ -514,4 +523,19 @@ export function getSpecialEvent(year, week) {
   const key = `${year}-${week}`;
   const ev = SPECIAL_EVENTS[key];
   return ev ?? null;
+}
+
+/**
+ * Resolves the Blazers bet random event — 50/50 win with happiness swing.
+ * @returns {{ won: boolean; message: string; effect: StatDelta }}
+ */
+export function getBlazersBetResult() {
+  const won = Math.random() < 0.5;
+  return {
+    won,
+    message: won
+      ? "Blazers win. You're up $20 and insufferable about it."
+      : "Blazers lose. You're down $20 and very quiet about it.",
+    effect: won ? { happiness: 15 } : { happiness: -15 },
+  };
 }
