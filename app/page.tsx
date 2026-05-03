@@ -91,7 +91,6 @@ const WEEKLY_EP_MAX = 5;
 
 const ACTIVITY_SHORT_LABEL: Record<string, string> = {
   "study-valley-library": "Study",
-  "class-cordley-hall": "Class",
   "gym-dixon-rec": "Gym",
   "frat-party-26th": "Party",
   "football-reser": "Football",
@@ -943,34 +942,23 @@ export default function Home() {
 
   return (
     <>
-      <div
-        className="osu-dorm-bg-wrap"
+      {/* eslint-disable-next-line @next/next/no-img-element -- full-viewport HUD background */}
+      <img
+        src="/scenes/dorm.png"
+        alt=""
         style={{
           position: "fixed",
           top: 0,
           left: 0,
-          width: "100%",
-          height: "100%",
+          width: "100vw",
+          height: "100vh",
+          objectFit: "cover",
           zIndex: 0,
         }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element -- full-viewport HUD background */}
-        <img
-          src="/scenes/dorm.png"
-          alt=""
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-          }}
-        />
-        <div className="osu-dorm-rain-window" aria-hidden>
-          <div className="osu-dorm-rain-layer osu-dorm-rain-layer--a" />
-          <div className="osu-dorm-rain-layer osu-dorm-rain-layer--b" />
-        </div>
+      />
+      <div className="osu-dorm-rain-window" aria-hidden>
+        <div className="osu-dorm-rain-layer osu-dorm-rain-layer--a" />
+        <div className="osu-dorm-rain-layer osu-dorm-rain-layer--b" />
       </div>
       <div
         style={{
@@ -980,7 +968,7 @@ export default function Home() {
           width: "100%",
           height: "100%",
           background: "rgba(0, 0, 0, 0.45)",
-          zIndex: 1,
+          zIndex: 2,
           pointerEvents: "none",
         }}
       />
@@ -1423,7 +1411,7 @@ export default function Home() {
             border: "none",
             borderBottom: "1px solid rgba(255, 255, 255, 0.12)",
             cursor: "pointer",
-            fontSize: "clamp(0.45rem, 2vw, 0.62rem)",
+            fontSize: 14,
           }}
         >
           ◀ Close
@@ -1441,7 +1429,7 @@ export default function Home() {
             className="osu-display-font"
             style={{
               margin: "0 0 12px",
-              fontSize: "clamp(0.55rem, 2.2vw, 0.75rem)",
+              fontSize: 16,
               color: "#FFFFFF",
             }}
           >
@@ -1475,7 +1463,7 @@ export default function Home() {
                   <div
                     className="osu-display-font"
                     style={{
-                      fontSize: "clamp(0.48rem, 2vw, 0.62rem)",
+                      fontSize: 14,
                       color: "#FFFFFF",
                     }}
                   >
@@ -1486,7 +1474,7 @@ export default function Home() {
                       className="osu-display-font osu-display-font--micro"
                       style={{
                         flexShrink: 0,
-                        fontSize: "clamp(0.34rem, 1.3vw, 0.44rem)",
+                        fontSize: 12,
                         padding: "2px 8px",
                         borderRadius: 999,
                         background: "rgba(29, 158, 117, 0.25)",
@@ -1501,7 +1489,7 @@ export default function Home() {
                 <p
                   style={{
                     margin: "0 0 8px",
-                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
+                    fontSize: 12,
                     lineHeight: 1.45,
                     opacity: 0.9,
                   }}
@@ -1510,7 +1498,7 @@ export default function Home() {
                 </p>
                 <div
                   style={{
-                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
+                    fontSize: 12,
                     marginBottom: 6,
                     color: "#1D9E75",
                     fontWeight: 700,
@@ -1520,7 +1508,7 @@ export default function Home() {
                 </div>
                 <div
                   style={{
-                    fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+                    fontSize: 12,
                     marginBottom: 8,
                     opacity: 0.88,
                   }}
@@ -1546,7 +1534,7 @@ export default function Home() {
                     background: !canBuy ? "rgba(120,120,120,0.35)" : "#1D9E75",
                     color: "#FFFFFF",
                     cursor: !canBuy ? "not-allowed" : "pointer",
-                    fontSize: "clamp(0.4rem, 1.6vw, 0.52rem)",
+                    fontSize: 12,
                   }}
                 >
                   {ownedOngoing ? "Owned" : canAfford ? "Buy" : "Cannot afford"}
@@ -1559,7 +1547,7 @@ export default function Home() {
             className="osu-display-font"
             style={{
               margin: "20px 0 10px",
-              fontSize: "clamp(0.5rem, 2vw, 0.65rem)",
+              fontSize: 14,
               color: "#FCA5A5",
             }}
           >
@@ -1568,7 +1556,7 @@ export default function Home() {
           <p
             style={{
               margin: "0 0 12px",
-              fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+              fontSize: 12,
               lineHeight: 1.45,
               color: "#F87171",
               border: "1px solid rgba(248, 113, 113, 0.45)",
@@ -1602,7 +1590,7 @@ export default function Home() {
                 <div
                   className="osu-display-font"
                   style={{
-                    fontSize: "clamp(0.48rem, 2vw, 0.62rem)",
+                    fontSize: 14,
                     color: "#FECACA",
                     marginBottom: 6,
                   }}
@@ -1612,7 +1600,7 @@ export default function Home() {
                 <p
                   style={{
                     margin: "0 0 8px",
-                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
+                    fontSize: 12,
                     lineHeight: 1.45,
                     color: "#FEE2E2",
                   }}
@@ -1622,7 +1610,7 @@ export default function Home() {
                 <p
                   style={{
                     margin: "0 0 8px",
-                    fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+                    fontSize: 12,
                     lineHeight: 1.45,
                     color: "#FCA5A5",
                   }}
@@ -1633,7 +1621,7 @@ export default function Home() {
                 </p>
                 <div
                   style={{
-                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
+                    fontSize: 12,
                     marginBottom: 6,
                     color: "#F87171",
                     fontWeight: 700,
@@ -1643,7 +1631,7 @@ export default function Home() {
                 </div>
                 <div
                   style={{
-                    fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+                    fontSize: 12,
                     marginBottom: 8,
                     opacity: 0.9,
                     color: "#FEE2E2",
@@ -1664,7 +1652,7 @@ export default function Home() {
                     background: !canAfford ? "rgba(120,120,120,0.35)" : "#B91C1C",
                     color: "#FFFFFF",
                     cursor: !canAfford ? "not-allowed" : "pointer",
-                    fontSize: "clamp(0.4rem, 1.6vw, 0.52rem)",
+                    fontSize: 12,
                   }}
                 >
                   {canAfford ? "Buy (confirm risk)" : "Cannot afford"}

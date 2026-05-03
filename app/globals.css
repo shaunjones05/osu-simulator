@@ -155,18 +155,15 @@ body {
   transform: scale(0.97);
 }
 
-/* Dorm HUD: subtle rain in upper window — only visual, pointer-events none */
-.osu-dorm-bg-wrap {
-  position: relative;
-}
-
+/* Dorm HUD: subtle rain in upper window — fixed to viewport, pointer-events none */
 .osu-dorm-rain-window {
-  position: absolute;
+  position: fixed;
   left: 50%;
   top: 0;
   transform: translateX(-50%);
+  z-index: 1;
   width: min(44vw, 480px);
-  height: 30%;
+  height: 30vh;
   pointer-events: none;
   overflow: hidden;
   -webkit-mask-image: linear-gradient(

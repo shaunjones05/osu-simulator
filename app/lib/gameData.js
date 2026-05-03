@@ -10,14 +10,6 @@ export const ACTIVITIES = [
     effects: { gpa: 8, health: -2, happiness: -1, social: 0 },
   },
   {
-    id: "class-cordley-hall",
-    name: "Attend class at Cordley Hall",
-    location: "Cordley Hall, Oregon State University",
-    epCost: 2,
-    sceneImage: "kelley.png",
-    effects: { gpa: 5, health: 0, happiness: 0, social: 2 },
-  },
-  {
     id: "gym-dixon-rec",
     name: "Gym at Dixon Rec Center",
     location: "Dixon Recreation Center, Oregon State University",
