@@ -54,7 +54,7 @@ export const GUARANTEED_SCENARIOS = [
     title: "Dorm Party Invite",
     description:
       "Your neighbor knocks — there's a party down the hall. You've got an exam coming up though...",
-    triggerCondition: { year: 1, weekRange: [1, 8] },
+    triggerCondition: { year: 1, weekRange: [1, 3] },
     oneTime: true,
     choices: [
       {
@@ -144,8 +144,8 @@ function matchesTrigger(t, year, week) {
   }
   if (Array.isArray(t.randomYear) && t.randomYear.length > 0) {
     if (!t.randomYear.includes(year)) return false;
-    /** One-time slot: junior year week 5 (eligible years 2–4 in data). */
-    return year === 3 && week === 5;
+    /** One-time slot: junior year week 2 (week 3 is Halloween every year). */
+    return year === 3 && week === 2;
   }
   return false;
 }

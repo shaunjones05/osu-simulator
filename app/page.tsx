@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   ACTIVITIES,
+  WEEKS_PER_YEAR,
   INITIAL_STATS,
   ENERGY_BY_YEAR,
   JOBS,
@@ -966,7 +967,7 @@ export default function Home() {
       }
     }
 
-    if (currentWeek < 8) {
+    if (currentWeek < WEEKS_PER_YEAR) {
       setCurrentWeek((w) => w + 1);
       setWeekSelections([]);
       setActivitiesPanelOpen(false);
@@ -1657,6 +1658,11 @@ export default function Home() {
               if (!activity || energyRemaining < activity.epCost) return;
               const minY = (activity as { minYear?: number }).minYear;
               if (typeof minY === "number" && minY > currentYear) return;
+              const maxPw = (activity as { maxPerWeek?: number }).maxPerWeek;
+              if (typeof maxPw === "number" && maxPw >= 1) {
+                const n = weekSelections.filter((x) => x === id).length;
+                if (n >= maxPw) return;
+              }
               setWeekSelections([...weekSelections, id]);
               setEnergyRemaining(energyRemaining - activity.epCost);
             }}

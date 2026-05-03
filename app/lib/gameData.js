@@ -1,5 +1,8 @@
 /** Activity definitions — EP costs and stat deltas from OSU Simulator master plan. */
 
+/** Academic weeks per in-game year (was 8; shorter calendar = faster years). */
+export const WEEKS_PER_YEAR = 3;
+
 export const ACTIVITIES = [
   {
     id: "study-valley-library",
@@ -32,6 +35,8 @@ export const ACTIVITIES = [
     epCost: 1,
     sceneImage: "stadium.png",
     effects: { gpa: 0, health: 0, happiness: 6, social: 6 },
+    /** At most one Reser trip per in-game week. */
+    maxPerWeek: 1,
   },
   {
     id: "eat-arnold-dining",
@@ -672,7 +677,7 @@ export const RANDOM_EVENTS = [
 ];
 
 /**
- * Calendar special events keyed by `"year-week"` (e.g. `"1-4"`).
+ * Calendar special events keyed by `"year-week"` (e.g. `"1-2"`). Weeks are 1..WEEKS_PER_YEAR.
  * Most entries use a plain `effect` object. For GPA branches, `effect` is a function
  * `(stats) => StatDelta` — resolve with `typeof e.effect === "function" ? e.effect(stats) : e.effect`.
  * @type {Record<string, { title: string; description: string; effect: StatDelta | ((stats: Record<string, number>) => StatDelta); isMandatory: boolean }>}
@@ -685,7 +690,7 @@ export const SPECIAL_EVENTS = {
     effect: { social: 14, happiness: 7 },
     isMandatory: true,
   },
-  "1-4": {
+  "1-2": {
     title: "First Midterms",
     description:
       "First real exams land. If you were already drowning, the curve does not save you — if you were steady, you rise.",
@@ -695,7 +700,7 @@ export const SPECIAL_EVENTS = {
     },
     isMandatory: true,
   },
-  "1-8": {
+  "1-3": {
     title: "Fall Finals",
     description:
       "Dead week is a lie and Reser is a dream. Either you cram through the wall or you close strong.",
@@ -712,7 +717,7 @@ export const SPECIAL_EVENTS = {
     effect: { social: 11, happiness: 8, gpa: -5 },
     isMandatory: false,
   },
-  "3-4": {
+  "3-3": {
     title: "Junior Internship Fair at MU",
     description:
       "Resume paper, free pens, and recruiters who actually read your major. The career path gets real.",

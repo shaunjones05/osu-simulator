@@ -16,6 +16,8 @@ export type Activity = {
   };
   /** If set, activity is locked until this academic year (inclusive). */
   minYear?: number;
+  /** Max times this activity can appear in one week's selections (e.g. one football game). */
+  maxPerWeek?: number;
 };
 
 const ORANGE = "#D73F09";
@@ -189,7 +191,13 @@ export default function ActivityPicker({
   const cards = activities.map((activity) => {
     const count = countSelections(weekSelections, activity.id);
     const selected = count > 0;
-    const cannotAdd = activity.epCost > energyRemaining;
+    const maxPw =
+      typeof activity.maxPerWeek === "number" && activity.maxPerWeek >= 1
+        ? activity.maxPerWeek
+        : Infinity;
+    const atWeeklyCap = count >= maxPw;
+    const cannotAdd =
+      activity.epCost > energyRemaining || atWeeklyCap;
     const minY = activity.minYear;
     const locked =
       typeof minY === "number" &&
@@ -291,7 +299,7 @@ export default function ActivityPicker({
             aria-label={`Add one ${activity.name}`}
             disabled={cannotAdd || locked}
             onClick={() => {
-              if (!cannotAdd && !locked) onAdd(activity.id);
+              if (!cannotAdd && !locked && !atWeeklyCap) onAdd(activity.id);
             }}
           >
             +
