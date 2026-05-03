@@ -64,7 +64,7 @@ function applyStatDelta(
   return next;
 }
 
-/** Filename under `/public/scenes/` (e.g. `study-valley-library.png`). */
+/** Filename under `/public/scenes/` from `ACTIVITIES[].sceneImage` (e.g. `library.png`). */
 function pickSceneImageFromSelections(weekSelections: string[]): string {
   if (weekSelections.length === 0) return "";
   const seen = new Set<string>();
@@ -88,7 +88,8 @@ function pickSceneImageFromSelections(weekSelections: string[]): string {
       bestId = id;
     }
   }
-  return bestId ? `${bestId}.png` : "";
+  const activity = ACTIVITIES.find((ac) => ac.id === bestId);
+  return activity?.sceneImage ?? "";
 }
 
 export default function Home() {

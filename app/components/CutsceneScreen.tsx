@@ -110,6 +110,8 @@ export default function CutsceneScreen({
     overflow: "hidden",
     border: "1px solid rgba(255, 255, 255, 0.12)",
     backgroundColor: "#0d0d0d",
+    display: "flex",
+    lineHeight: 0,
   };
 
   const story: CSSProperties = {
@@ -192,8 +194,7 @@ export default function CutsceneScreen({
     fontFamily: baseFont,
   };
 
-  const sceneSrc =
-    sceneImage.trim().length > 0 ? `/scenes/${sceneImage}` : "";
+  const hasScene = sceneImage.trim().length > 0;
 
   return (
     <div style={shell}>
@@ -205,18 +206,13 @@ export default function CutsceneScreen({
           Year {year} · Week {week}
         </div>
 
-        {sceneSrc ? (
+        {hasScene ? (
           <div style={imgWrap}>
             {/* eslint-disable-next-line @next/next/no-img-element -- pixel art needs native img + image-rendering */}
             <img
-              src={sceneSrc}
+              src={`/scenes/${sceneImage.trim()}`}
               alt=""
-              style={{
-                display: "block",
-                width: "100%",
-                height: "auto",
-                imageRendering: "pixelated",
-              }}
+              style={{ imageRendering: "pixelated", width: "100%" }}
             />
           </div>
         ) : null}
