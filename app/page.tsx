@@ -12,6 +12,7 @@ import {
   getBlazersBetResult,
   rollFakeIdArrest,
   jobIsAvailable,
+  shopItemPassesAgeGate,
   FIRST_PARTY_COKE_SCENARIO,
   FIRST_PARTY_COKE_SCENARIO_ID,
   KALSHI_STREAKER_SCENARIO,
@@ -1127,6 +1128,7 @@ export default function Home() {
     if (!item) return;
     if (money < item.cost) return;
     if (!item.isOneTime && ownedShopIds.includes(itemId)) return;
+    if (!shopItemPassesAgeGate(item, currentYear, fakeidRisk)) return;
 
     if (item.isFakeId) {
       setFakeIdConfirmItemId(itemId);
@@ -1725,7 +1727,10 @@ export default function Home() {
           {shopMainItems.map((item) => {
             const ownedOngoing = !item.isOneTime && ownedShopIds.includes(item.id);
             const canAfford = money >= item.cost;
-            const canBuy = canAfford && !ownedOngoing;
+            const ageOk = shopItemPassesAgeGate(item, currentYear, fakeidRisk);
+            const canBuy = canAfford && !ownedOngoing && ageOk;
+            const ageLocked =
+              item.minLegalPurchaseYear != null && !ageOk && !ownedOngoing;
             return (
               <div
                 key={item.id}
@@ -1808,6 +1813,20 @@ export default function Home() {
                     </>
                   ) : null}
                 </div>
+                {ageLocked ? (
+                  <p
+                    style={{
+                      margin: "0 0 8px",
+                      fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+                      lineHeight: 1.45,
+                      color: "#FCA5A5",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    You are underage — bartenders card at the door. Come back junior
+                    year, or buy a fake ID from the Underground market.
+                  </p>
+                ) : null}
                 <button
                   type="button"
                   className="osu-display-font"
@@ -1824,7 +1843,13 @@ export default function Home() {
                     fontSize: "clamp(0.4rem, 1.6vw, 0.52rem)",
                   }}
                 >
-                  {ownedOngoing ? "Owned" : canAfford ? "Buy" : "Cannot afford"}
+                  {ownedOngoing
+                    ? "Owned"
+                    : !ageOk
+                      ? "Underage"
+                      : !canAfford
+                        ? "Cannot afford"
+                        : "Buy"}
                 </button>
               </div>
             );

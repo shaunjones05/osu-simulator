@@ -237,6 +237,21 @@ export function jobIsAvailable(job, year, gpaInternal) {
 }
 
 /**
+ * Bar / alcohol items: junior (year 3+) or an active fake ID from the Underground.
+ * @param {{ minLegalPurchaseYear?: number }} item
+ * @param {number} currentYear 1–4
+ * @param {"none" | "high" | "low"} fakeidRisk
+ * @returns {boolean}
+ */
+export function shopItemPassesAgeGate(item, currentYear, fakeidRisk) {
+  const min = item.minLegalPurchaseYear;
+  if (min == null) return true;
+  const y = Number(currentYear) || 1;
+  if (y >= min) return true;
+  return fakeidRisk === "high" || fakeidRisk === "low";
+}
+
+/**
  * Shop & underground items. `effect` applies immediately on purchase (stats 0–100 scale).
  * `weeklyBonus` applies every week in passive phase after purchase (ongoing only).
  * @type {Array<{
@@ -250,6 +265,7 @@ export function jobIsAvailable(job, year, gpaInternal) {
  *   category?: "shop" | "underground";
  *   isFakeId?: boolean;
  *   fakeidRisk?: "high" | "low";
+ *   minLegalPurchaseYear?: number;
  * }>}
  */
 export const SHOP = [
@@ -292,6 +308,7 @@ export const SHOP = [
     isOneTime: true,
     weeklyBonus: null,
     category: "shop",
+    minLegalPurchaseYear: 3,
   },
   {
     id: "shop-spring-break-newport",
