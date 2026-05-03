@@ -70,6 +70,7 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json()) as Record<string, unknown>;
     const playerName = String(body.playerName ?? "");
+    const playerMajor = String(body.playerMajor ?? "");
     const year = Number(body.year) || 1;
     const week = Number(body.week) || 1;
     const chosenActivities = Array.isArray(body.chosenActivities)
@@ -89,6 +90,7 @@ export async function POST(req: Request) {
       baseline,
       moneyForNarrative,
       jobLine,
+      playerMajor,
     );
     const scenarioPrompt = buildWeeklyScenarioJsonPrompt(
       playerName,

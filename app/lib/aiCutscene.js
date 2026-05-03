@@ -139,17 +139,10 @@ async function callAnthropicMessages(userPrompt, maxTokens) {
  * @param {unknown[]} chosenActivities
  * @param {{ gpa?: number; health?: number; happiness?: number; social?: number }} currentStats
  * @param {{ gpa?: number; health?: number; happiness?: number; social?: number }} week1BaselineStats
- * @returns {string}
- */
-/**
- * @param {string} playerName
- * @param {number} year
- * @param {number} week
- * @param {unknown[]} chosenActivities
- * @param {{ gpa?: number; health?: number; happiness?: number; social?: number }} currentStats
- * @param {{ gpa?: number; health?: number; happiness?: number; social?: number }} week1BaselineStats
  * @param {number} moneyDollars cash on hand this week (after resolutions)
  * @param {string} jobLine human-readable job summary (e.g. job name + weekly pay) or "no part-time job"
+ * @param {string} [playerMajor] declared major for narrative flavor
+ * @returns {string}
  */
 export function buildCutsceneUserPrompt(
   playerName,
@@ -160,6 +153,7 @@ export function buildCutsceneUserPrompt(
   week1BaselineStats,
   moneyDollars,
   jobLine,
+  playerMajor = "",
 ) {
   const standing = yearToClassStanding(year);
   const activityText = formatActivityClause(chosenActivities);
@@ -175,8 +169,15 @@ export function buildCutsceneUserPrompt(
 
   const money = Math.max(0, Math.round(Number(moneyDollars) || 0));
   const job = typeof jobLine === "string" && jobLine.trim() ? jobLine.trim() : "no part-time job";
+  const majorTrim =
+    typeof playerMajor === "string" && playerMajor.trim()
+      ? playerMajor.trim()
+      : "";
+  const majorClause = majorTrim
+    ? `The player is majoring in ${majorTrim}. `
+    : "";
 
-  return `The player's name is ${playerName}. They are a ${standing} at Oregon State University in Week ${week} of their college journey. This week they: ${activityText}. Their current stats: GPA ${gpaNow}, Health ${hNow}/100, Happiness ${hapNow}/100, Social ${sNow}/100. When they arrived at OSU in Week 1, their baseline stats were: GPA ${gpaBase}, Health ${hBase}/100, Happiness ${hapBase}/100, Social ${sBase}/100. They currently have $${money} in spending money. Part-time work: ${job}. You may briefly reference money or their job when it fits the week's story (stress of shifts, treating themselves, ramen budget, etc.) but do not lecture about finances. Write 1-2 short simple sentences about their week. Only mention things you are 100% certain are true based on their activities and stats. Do not invent jobs, relationships, supervisors, or specific people. Keep it vague if unsure. Reference OSU or Corvallis locations only if they actually did an activity there. No emojis.`;
+  return `The player's name is ${playerName}. ${majorClause}They are a ${standing} at Oregon State University in Week ${week} of their college journey. This week they: ${activityText}. Their current stats: GPA ${gpaNow}, Health ${hNow}/100, Happiness ${hapNow}/100, Social ${sNow}/100. When they arrived at OSU in Week 1, their baseline stats were: GPA ${gpaBase}, Health ${hBase}/100, Happiness ${hapBase}/100, Social ${sBase}/100. They currently have $${money} in spending money. Part-time work: ${job}. You may briefly reference money or their job when it fits the week's story (stress of shifts, treating themselves, ramen budget, etc.) but do not lecture about finances. You may briefly reference their major when it fits naturally (labs, prerequisites, career anxiety) but do not invent specific courses or professors. Write 1-2 short simple sentences about their week. Only mention things you are 100% certain are true based on their activities and stats. Do not invent jobs, relationships, supervisors, or specific people. Keep it vague if unsure. Reference OSU or Corvallis locations only if they actually did an activity there. No emojis.`;
 }
 
 /**
@@ -210,6 +211,7 @@ export function buildWeeklyScenarioJsonPrompt(
  * @param {{ gpa?: number; health?: number; happiness?: number; social?: number }} week1BaselineStats
  * @param {number} [moneyDollars]
  * @param {string} [jobLine]
+ * @param {string} [playerMajor]
  * @returns {Promise<string>}
  */
 export async function generateCutscene(
@@ -221,6 +223,7 @@ export async function generateCutscene(
   week1BaselineStats,
   moneyDollars = 0,
   jobLine = "",
+  playerMajor = "",
 ) {
   try {
     const userPrompt = buildCutsceneUserPrompt(
@@ -232,6 +235,7 @@ export async function generateCutscene(
       week1BaselineStats,
       moneyDollars,
       jobLine,
+      playerMajor,
     );
     return await callAnthropicMessages(userPrompt, MAX_TOKENS_CUTSCENE);
   } catch {

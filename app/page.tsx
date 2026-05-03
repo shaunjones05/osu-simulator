@@ -287,6 +287,7 @@ function pickSceneImageFromSelections(weekSelections: string[]): string {
 
 export default function Home() {
   const [playerName, setPlayerName] = useState("");
+  const [playerMajor, setPlayerMajor] = useState("");
   const [gameStarted, setGameStarted] = useState(false);
   const [currentYear, setCurrentYear] = useState(1);
   const [currentWeek, setCurrentWeek] = useState(1);
@@ -385,8 +386,9 @@ export default function Home() {
   if (!gameStarted) {
     return (
       <StartScreen
-        onStart={(name) => {
+        onStart={(name, major) => {
           setPlayerName(name);
+          setPlayerMajor(major);
           setCurrentYear(1);
           setCurrentWeek(1);
           const baseline = { ...INITIAL_STATS };
@@ -486,6 +488,7 @@ export default function Home() {
     week: number,
     baseline: WeekStats,
     name: string,
+    playerMajor: string,
     scenarioIdsForApi: string[],
     moneyBefore: number,
     activeJobIdAtStart: string | null,
@@ -648,6 +651,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           playerName: name,
+          playerMajor,
           year,
           week,
           chosenActivities: selections,
@@ -678,6 +682,7 @@ export default function Home() {
         baseline,
         moneyForNarrative,
         jobLine,
+        playerMajor,
       );
       apiScenario = null;
     }
@@ -805,6 +810,7 @@ export default function Home() {
     const week = currentWeek;
     const baseline = { ...week1BaselineStats };
     const name = playerName;
+    const major = playerMajor;
     const moneySnap = money;
     const jobSnap = activeJobId;
     const perksSnap = [...activePerks];
@@ -841,6 +847,7 @@ export default function Home() {
         week,
         baseline,
         name,
+        major,
         usedScenarioIds,
         moneySnap,
         jobSnap,
