@@ -96,6 +96,13 @@
   line-height: 1.5;
 }
 
+.loadingRowSimming {
+  max-width: min(92vw, 28rem);
+  text-align: center;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
 .dots {
   display: inline-flex;
   min-width: 1.2em;

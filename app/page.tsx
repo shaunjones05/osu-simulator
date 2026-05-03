@@ -1700,25 +1700,7 @@ export default function Home() {
       />
 
       {isGeneratingStory && gamePhase === "picking" ? (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 50,
-            background: "rgba(0, 0, 0, 0.72)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            pointerEvents: "auto",
-          }}
-        >
-          <p
-            className="osu-display-font osu-display-font--micro osu-simming-pulse"
-            style={{ color: "#FFFFFF", textAlign: "center", padding: "0 1rem" }}
-          >
-            Simming to next week…
-          </p>
-        </div>
+        <LoadingScreen mode="simming" />
       ) : null}
 
       <div

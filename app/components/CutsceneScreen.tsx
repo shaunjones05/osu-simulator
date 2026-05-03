@@ -3,6 +3,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { ACTIVITIES_FOR_SIM } from "../lib/gameData.js";
 import type { WeekStats } from "./WeekSummary";
+import LoadingScreen from "./LoadingScreen";
 
 const ORANGE = "#D73F09";
 const BG = "#1A1A1A";
@@ -131,32 +132,7 @@ export default function CutsceneScreen({
     'var(--font-body), Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
 
   if (isLoading) {
-    const outer: CSSProperties = {
-      minHeight: "100vh",
-      width: "100%",
-      margin: 0,
-      boxSizing: "border-box",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: BG,
-      color: "#FFFFFF",
-      padding: 24,
-    };
-
-    return (
-      <div style={outer}>
-        <p
-          className="osu-display-font osu-display-font--hero osu-simming-pulse"
-          style={{
-            textAlign: "center",
-            maxWidth: "min(90vw, 28rem)",
-          }}
-        >
-          Simming to next week...
-        </p>
-      </div>
-    );
+    return <LoadingScreen mode="simming" />;
   }
 
   const shell: CSSProperties = {
