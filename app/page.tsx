@@ -938,7 +938,6 @@ export default function Home() {
     borderRadius: 10,
     textAlign: "center",
     cursor: "pointer",
-    marginBottom: 8,
     position: "relative",
   };
 
@@ -997,92 +996,88 @@ export default function Home() {
         style={{
           position: "fixed",
           top: 16,
+          left: 16,
+          zIndex: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          background: "rgba(26, 26, 26, 0.85)",
+          borderRadius: 20,
+          padding: "10px 16px",
+          boxSizing: "border-box",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: "1.2rem", lineHeight: 1 }} aria-hidden>
+            ⚡
+          </span>
+          <span
+            style={{
+              fontSize: "1.65rem",
+              fontWeight: 800,
+              color: epHudColor,
+              fontVariantNumeric: "tabular-nums",
+              transition: "color 0.25s ease",
+            }}
+          >
+            {energyRemaining}
+          </span>
+        </div>
+        <div
+          style={{
+            width: 1,
+            height: 26,
+            background: "rgba(255, 255, 255, 0.2)",
+            flexShrink: 0,
+          }}
+          aria-hidden
+        />
+        <span
+          style={{
+            fontSize: "1.35rem",
+            fontWeight: 800,
+            color: "#1D9E75",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          ${money}
+        </span>
+      </div>
+
+      <div
+        style={{
+          position: "fixed",
+          top: 70,
+          left: 16,
+          zIndex: 10,
+          width: 220,
+          background: "rgba(26, 26, 26, 0.85)",
+          borderRadius: 12,
+          padding: "10px 14px",
+          boxSizing: "border-box",
+        }}
+      >
+        <StatBars
+          stats={stats}
+          compact
+          gpaAsNA={
+            currentYear === 1 && currentWeek === 1 && gamePhase === "picking"
+          }
+        />
+      </div>
+
+      <div
+        style={{
+          position: "fixed",
+          top: 16,
           right: 16,
           zIndex: 20,
           display: "flex",
           flexDirection: "column",
           alignItems: "flex-end",
-          gap: 10,
-          maxHeight: "calc(100vh - 32px)",
-          boxSizing: "border-box",
+          gap: 8,
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            background: "rgba(26, 26, 26, 0.85)",
-            borderRadius: 20,
-            padding: "10px 16px",
-            boxSizing: "border-box",
-            flexShrink: 0,
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: "1.2rem", lineHeight: 1 }} aria-hidden>
-              ⚡
-            </span>
-            <span
-              style={{
-                fontSize: "1.65rem",
-                fontWeight: 800,
-                color: epHudColor,
-                fontVariantNumeric: "tabular-nums",
-                transition: "color 0.25s ease",
-              }}
-            >
-              {energyRemaining}
-            </span>
-          </div>
-          <div
-            style={{
-              width: 1,
-              height: 26,
-              background: "rgba(255, 255, 255, 0.2)",
-              flexShrink: 0,
-            }}
-            aria-hidden
-          />
-          <span
-            style={{
-              fontSize: "1.35rem",
-              fontWeight: 800,
-              color: "#1D9E75",
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            ${money}
-          </span>
-        </div>
-
-        <div
-          style={{
-            width: 220,
-            background: "rgba(26, 26, 26, 0.85)",
-            borderRadius: 12,
-            padding: "10px 14px",
-            boxSizing: "border-box",
-            flexShrink: 0,
-          }}
-        >
-          <StatBars
-            stats={stats}
-            compact
-            gpaAsNA={
-              currentYear === 1 && currentWeek === 1 && gamePhase === "picking"
-            }
-          />
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "flex-end",
-            flexShrink: 0,
-          }}
-        >
         <button
           type="button"
           className="osu-display-font osu-display-font--micro osu-hud-panel-btn"
@@ -1150,11 +1145,10 @@ export default function Home() {
           type="button"
           className="osu-display-font osu-display-font--micro osu-hud-panel-btn"
           onClick={openSummaryPanel}
-          style={{ ...hudBtn, marginBottom: 0 }}
+          style={hudBtn}
         >
           Summary
         </button>
-        </div>
       </div>
 
       <aside
