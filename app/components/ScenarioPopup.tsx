@@ -9,6 +9,7 @@ export type ScenarioConsequence = {
   happiness?: number;
   social?: number;
   message?: string;
+  gameOver?: boolean;
 };
 
 export type ScenarioChoice = {
@@ -34,15 +35,20 @@ const STAT_LABELS: Record<(typeof STAT_KEYS)[number], string> = {
 
 export type ScenarioPopupProps = {
   scenario: ScenarioForPopup;
-  onComplete: (choiceIndex: number) => void;
+  onComplete: (choiceIndex: number, resolved?: ScenarioConsequence) => void;
+  /** When set, overrides static choice consequences (e.g. random coke outcome). */
+  resolveChoiceConsequence?: (choiceIndex: number) => ScenarioConsequence;
 };
 
 export default function ScenarioPopup({
   scenario,
   onComplete,
+  resolveChoiceConsequence,
 }: ScenarioPopupProps) {
   const [phase, setPhase] = useState<"choose" | "reveal">("choose");
   const [chosenIndex, setChosenIndex] = useState<number | null>(null);
+  const [resolvedConsequence, setResolvedConsequence] =
+    useState<ScenarioConsequence | null>(null);
 
   const overlay: CSSProperties = {
     position: "fixed",
@@ -133,14 +139,17 @@ export default function ScenarioPopup({
   };
 
   function handlePick(index: number) {
+    const base = scenario.choices[index]?.consequence;
+    const resolved =
+      resolveChoiceConsequence?.(index) ??
+      (base as ScenarioConsequence | undefined);
+    setResolvedConsequence(resolved ?? null);
     setChosenIndex(index);
     setPhase("reveal");
   }
 
   const consequence =
-    chosenIndex !== null
-      ? scenario.choices[chosenIndex]?.consequence
-      : undefined;
+    phase === "reveal" ? resolvedConsequence ?? undefined : undefined;
 
   const statDeltas: { key: (typeof STAT_KEYS)[number]; delta: number }[] = [];
   if (consequence) {
@@ -178,7 +187,7 @@ export default function ScenarioPopup({
             {consequence?.message ? (
               <div style={messageBox}>{consequence.message}</div>
             ) : null}
-            {statDeltas.length > 0 ? (
+            {consequence?.gameOver ? null : statDeltas.length > 0 ? (
               <div style={{ marginBottom: "16px" }}>
                 {statDeltas.map(({ key, delta }) => (
                   <div
@@ -198,7 +207,8 @@ export default function ScenarioPopup({
               type="button"
               style={continueBtn}
               onClick={() => {
-                if (chosenIndex !== null) onComplete(chosenIndex);
+                if (chosenIndex !== null)
+                  onComplete(chosenIndex, resolvedConsequence ?? undefined);
               }}
             >
               Continue

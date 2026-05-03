@@ -5,33 +5,33 @@ export const ACTIVITIES = [
     id: "study-valley-library",
     name: "Study at Valley Library",
     location: "Valley Library, Oregon State University",
-    epCost: 3,
+    epCost: 2,
     sceneImage: "library.png",
-    effects: { gpa: 8, health: -2, happiness: -1, social: 0 },
+    effects: { gpa: 6, health: -2, happiness: -1, social: 0 },
   },
   {
     id: "gym-dixon-rec",
     name: "Gym at Dixon Rec Center",
     location: "Dixon Recreation Center, Oregon State University",
-    epCost: 3,
+    epCost: 2,
     sceneImage: "gym.png",
-    effects: { gpa: 0, health: 10, happiness: 3, social: 2 },
+    effects: { gpa: 0, health: 7, happiness: 2, social: 1 },
   },
   {
     id: "frat-party-26th",
     name: "Frat party on 26th Street",
     location: "Greek Row (26th Street), Corvallis",
-    epCost: 3,
+    epCost: 2,
     sceneImage: "party.png",
-    effects: { gpa: -3, health: -5, happiness: 10, social: 10 },
+    effects: { gpa: -3, health: -5, happiness: 7, social: 7 },
   },
   {
     id: "football-reser",
     name: "Football game at Reser Stadium",
     location: "Reser Stadium, Oregon State University",
-    epCost: 2,
+    epCost: 1,
     sceneImage: "stadium.png",
-    effects: { gpa: 0, health: 0, happiness: 8, social: 8 },
+    effects: { gpa: 0, health: 0, happiness: 6, social: 6 },
   },
   {
     id: "eat-arnold-dining",
@@ -39,7 +39,7 @@ export const ACTIVITIES = [
     location: "Arnold Dining Hall, Oregon State University",
     epCost: 1,
     sceneImage: "dining.png",
-    effects: { gpa: 0, health: 5, happiness: 3, social: 2 },
+    effects: { gpa: 0, health: 4, happiness: 2, social: 1 },
   },
   {
     id: "sleep-in",
@@ -47,25 +47,57 @@ export const ACTIVITIES = [
     location: "On-campus housing, Corvallis",
     epCost: 1,
     sceneImage: "dorm.png",
-    effects: { gpa: 1, health: 6, happiness: 2, social: 0 },
+    effects: { gpa: 1, health: 4, happiness: 1, social: 0 },
   },
   {
     id: "club-mu",
     name: "Join a club at MU",
     location: "Memorial Union (MU), Oregon State University",
-    epCost: 3,
+    epCost: 2,
     sceneImage: "stadium.png",
-    effects: { gpa: 1, health: 0, happiness: 4, social: 7 },
+    effects: { gpa: 1, health: 0, happiness: 3, social: 5 },
   },
   {
     id: "study-group-kelley",
     name: "Study group at Kelley Engineering Center",
     location: "Kelley Engineering Center, Oregon State University",
-    epCost: 3,
+    epCost: 2,
     sceneImage: "kelley.png",
-    effects: { gpa: 7, health: 0, happiness: 2, social: 4 },
+    effects: { gpa: 5, health: 0, happiness: 1, social: 3 },
+  },
+  {
+    id: "gambling",
+    name: "Gambling Night",
+    location: "Private game, Corvallis",
+    epCost: 1,
+    sceneImage: "party.png",
+    effects: { gpa: 0, health: 0, happiness: 4, social: 2 },
   },
 ];
+
+/** One-time coke-at-party scenario (resolved in UI before the rest of the week). */
+export const FIRST_PARTY_COKE_SCENARIO_ID = "first-party-coke";
+
+export const FIRST_PARTY_COKE_SCENARIO = {
+  id: FIRST_PARTY_COKE_SCENARIO_ID,
+  title: "Someone offers you coke at the party",
+  description:
+    "It's your first party at OSU. Someone you just met holds out their hand. Your call.",
+  choices: [
+    {
+      label: "Take it",
+      consequence: {},
+    },
+    {
+      label: "Hard pass",
+      consequence: {
+        happiness: 5,
+        social: 2,
+        message: "You kept it moving. Still had a good night.",
+      },
+    },
+  ],
+};
 
 export const INITIAL_STATS = {
   gpa: 50,
@@ -82,83 +114,97 @@ export const ENERGY_BY_YEAR = {
 };
 
 /**
- * Campus jobs — player holds at most one. `epCost` is charged each week on End Week; `weeklyPay` is added then.
- * `minYear` / `maxYear` gate eligibility (inclusive).
- * @type {Array<{ id: string; name: string; location: string; epCost: number; weeklyPay: number; description: string; minYear?: number; maxYear?: number }>}
+ * Campus jobs — player holds at most one. `epCost` is reserved/charged each week; `weeklyPay` added on End Week unless short on EP.
+ * @type {Array<{
+ *   id: string;
+ *   name: string;
+ *   location: string;
+ *   epCost: number;
+ *   weeklyPay: number;
+ *   minGpa?: number;
+ *   minYear?: number;
+ *   maxYear?: number;
+ *   description: string;
+ *   isCrypto?: boolean;
+ * }>}
  */
 export const JOBS = [
   {
-    id: "job-dutch-barista",
+    id: "campus-barista",
     name: "Campus Barista",
     location: "Dutch Bros on campus",
     epCost: 2,
     weeklyPay: 150,
-    description: "Early shifts, syrup pumps, and regulars who remember your name.",
+    minGpa: 0,
+    description:
+      "Early shifts, syrup pumps, and regulars who remember your name.",
   },
   {
-    id: "job-library-assistant",
+    id: "library-assistant",
     name: "Library Assistant",
     location: "Valley Library",
     epCost: 2,
     weeklyPay: 175,
+    minGpa: 45,
     description: "Stacks, scanners, and whisper-quiet drama in the stacks.",
   },
   {
-    id: "job-mu-food-court",
+    id: "mu-food-court",
     name: "MU Food Court Worker",
     location: "Memorial Union",
     epCost: 3,
     weeklyPay: 225,
-    description: "Rush-hour trays, fryer alarms, and free shift meals when the manager looks away.",
+    minGpa: 35,
+    description:
+      "Rush-hour trays, fryer alarms, and free shift meals when the manager looks away.",
   },
   {
-    id: "job-research-cordley",
+    id: "research-assistant",
     name: "Research Assistant",
     location: "Cordley Hall",
     epCost: 4,
     weeklyPay: 300,
-    description: "Pipettes, lab notebooks, and your name creeping toward a paper acknowledgments section.",
-  },
-  {
-    id: "job-ra-mcnary",
-    name: "Resident Advisor",
-    location: "McNary Hall",
-    epCost: 3,
-    weeklyPay: 250,
-    minYear: 2,
+    minGpa: 70,
     description:
-      "Floor meetings, duty rounds, and a built-in housing perk — your room is covered so you bank more of that paycheck.",
+      "Pipettes, lab notebooks, and your name creeping toward a paper acknowledgments section.",
   },
   {
-    id: "job-tech-kelley",
+    id: "tech-support",
     name: "Tech Support",
     location: "Kelley Engineering Center",
     epCost: 4,
     weeklyPay: 350,
-    description: "Ticket queues, ghosted VPNs, and professors who think rebooting is a personality.",
+    minGpa: 65,
+    description:
+      "Ticket queues, ghosted VPNs, and professors who think rebooting is a personality.",
   },
   {
-    id: "job-intern-startup",
-    name: "Internship",
-    location: "Local Corvallis startup",
-    epCost: 5,
-    weeklyPay: 500,
-    minYear: 3,
-    description:
-      "Equity jargon, Slack pings at midnight, and a résumé line that actually impresses recruiters.",
+    id: "crypto-trader",
+    name: "Crypto Trader",
+    location: "Remote",
+    epCost: 1,
+    weeklyPay: 0,
+    minGpa: 0,
+    description: "High risk, high reward. 50/50 every week.",
+    isCrypto: true,
   },
 ];
 
 /**
  * @param {typeof JOBS[number]} job
  * @param {number} year 1–4
+ * @param {number} [gpaInternal] 0–100 internal GPA scale
  * @returns {boolean}
  */
-export function jobIsAvailable(job, year) {
+export function jobIsAvailable(job, year, gpaInternal) {
   const y = Number(year) || 1;
-  const min = job.minYear != null ? Number(job.minYear) : 1;
-  const max = job.maxYear != null ? Number(job.maxYear) : 4;
-  return y >= min && y <= max;
+  const minY = job.minYear != null ? Number(job.minYear) : 1;
+  const maxY = job.maxYear != null ? Number(job.maxYear) : 4;
+  if (y < minY || y > maxY) return false;
+  const g = Number(gpaInternal);
+  const minG = job.minGpa != null ? Number(job.minGpa) : 0;
+  if (!Number.isFinite(g)) return minG <= 0;
+  return g >= minG;
 }
 
 /**
@@ -183,7 +229,7 @@ export const SHOP = [
     name: "Coffee from Dutch Bros",
     description: "Iced Americano, extra ice, zero regrets until the caffeine wears off.",
     cost: 6,
-    effect: { happiness: 4, gpa: 3, health: -1 },
+    effect: { happiness: 3, gpa: 2, health: -1 },
     isOneTime: true,
     weeklyBonus: null,
     category: "shop",
@@ -193,7 +239,7 @@ export const SHOP = [
     name: "Meal at Local Boyz",
     description: "Platter-sized portions and a nap schedule you did not plan for.",
     cost: 12,
-    effect: { health: 7, happiness: 6, social: 2, gpa: -1 },
+    effect: { health: 5, happiness: 4, social: 1, gpa: -1 },
     isOneTime: true,
     weeklyBonus: null,
     category: "shop",
@@ -203,7 +249,7 @@ export const SHOP = [
     name: "Late night Rivas Taco run",
     description: "Al pastor, salsa verde, and the walk home smells like victory.",
     cost: 8,
-    effect: { health: 3, happiness: 8, social: 4, gpa: -2 },
+    effect: { health: 2, happiness: 6, social: 3, gpa: -2 },
     isOneTime: true,
     weeklyBonus: null,
     category: "shop",
@@ -213,7 +259,7 @@ export const SHOP = [
     name: "Drinks at Downward Dog Tiki Tuesday",
     description: "Plastic cups, loud music, and tomorrow-you sends a vague apology text.",
     cost: 15,
-    effect: { happiness: 9, social: 10, health: -3, gpa: -3 },
+    effect: { happiness: 6, social: 7, health: -3, gpa: -3 },
     isOneTime: true,
     weeklyBonus: null,
     category: "shop",
@@ -223,7 +269,7 @@ export const SHOP = [
     name: "Spring Break trip to Newport Beach",
     description: "Salt air, highway miles, and a group chat that will never die.",
     cost: 200,
-    effect: { happiness: 20, social: 15, gpa: -8, health: 5 },
+    effect: { happiness: 14, social: 11, gpa: -8, health: 4 },
     isOneTime: true,
     weeklyBonus: null,
     category: "shop",
@@ -233,7 +279,7 @@ export const SHOP = [
     name: "Tailgate supplies for football game",
     description: "Coolers, chips, and enough orange face paint to stain your soul.",
     cost: 25,
-    effect: { happiness: 12, social: 12, gpa: -3, health: -2 },
+    effect: { happiness: 8, social: 8, gpa: -3, health: -2 },
     isOneTime: true,
     weeklyBonus: null,
     category: "shop",
@@ -243,7 +289,7 @@ export const SHOP = [
     name: "Tutor session at Valley Library",
     description: "Whiteboard markers and someone who actually understands Chapter 7.",
     cost: 40,
-    effect: { gpa: 15, happiness: 2, health: -1 },
+    effect: { gpa: 11, happiness: 1, health: -1 },
     isOneTime: true,
     weeklyBonus: null,
     category: "shop",
@@ -253,7 +299,7 @@ export const SHOP = [
     name: "Concert at Gill Coliseum",
     description: "Floor seats, bass you feel in your ribs, and ringing ears until Monday.",
     cost: 45,
-    effect: { happiness: 14, social: 10, health: -2, gpa: -2 },
+    effect: { happiness: 10, social: 7, health: -2, gpa: -2 },
     isOneTime: true,
     weeklyBonus: null,
     category: "shop",
@@ -265,7 +311,7 @@ export const SHOP = [
     cost: 35,
     effect: {},
     isOneTime: false,
-    weeklyBonus: { gpa: 2, happiness: 2 },
+    weeklyBonus: { gpa: 1, happiness: 1 },
     category: "shop",
   },
   {
@@ -275,7 +321,7 @@ export const SHOP = [
     cost: 60,
     effect: {},
     isOneTime: false,
-    weeklyBonus: { health: 2 },
+    weeklyBonus: { health: 1 },
     category: "shop",
   },
   {
@@ -285,7 +331,7 @@ export const SHOP = [
     cost: 80,
     effect: {},
     isOneTime: false,
-    weeklyBonus: { gpa: 3 },
+    weeklyBonus: { gpa: 2 },
     category: "shop",
   },
   {
@@ -295,7 +341,7 @@ export const SHOP = [
     cost: 200,
     effect: {},
     isOneTime: false,
-    weeklyBonus: { gpa: 4, happiness: 2 },
+    weeklyBonus: { gpa: 3, happiness: 1 },
     category: "shop",
   },
   {
@@ -304,7 +350,7 @@ export const SHOP = [
     description:
       "A JPEG of a JPEG of an ID. It scans until it does not. You were warned.",
     cost: 40,
-    effect: { social: 15 },
+    effect: { social: 11 },
     isOneTime: true,
     weeklyBonus: null,
     category: "underground",
@@ -317,7 +363,7 @@ export const SHOP = [
     description:
       "Hologram that almost passes the squint test. Still illegal — just slower to fall apart.",
     cost: 120,
-    effect: { social: 15 },
+    effect: { social: 11 },
     isOneTime: true,
     weeklyBonus: null,
     category: "underground",
@@ -367,28 +413,28 @@ export const RANDOM_EVENTS = [
     title: "Free pizza in the MU quad",
     description:
       "Someone’s club ran a tab and the boxes are still hot. You eat like royalty between classes.",
-    effect: { happiness: 10, health: 5 },
+    effect: { happiness: 7, health: 4 },
   },
   {
     id: "professor-cancelled-class",
     title: "Professor cancelled class",
     description:
       "Email hits at 8:02. The rest of the day opens up like a gift you did not earn.",
-    effect: { happiness: 8, gpa: 3 },
+    effect: { happiness: 6, gpa: 2 },
   },
   {
     id: "professor-downward-dog",
     title: "Ran into your professor at Downward Dog",
     description:
       "Yoga mats and small talk about the syllabus. Weirdly human; weirdly good for your grade energy.",
-    effect: { gpa: 5, social: 5 },
+    effect: { gpa: 4, social: 4 },
   },
   {
     id: "beaver-classic-game-day",
     title: "Beaver Classic game day",
     description:
       "Orange in the streets, noise in the stadium, homework deferred without guilt.",
-    effect: { social: 15, happiness: 10, gpa: -3 },
+    effect: { social: 11, happiness: 7, gpa: -3 },
   },
   {
     id: "midterm-forgot",
@@ -402,7 +448,7 @@ export const RANDOM_EVENTS = [
     title: "Met a new friend at Dixon",
     description:
       "Spotter becomes brunch buddy. Corvallis feels smaller in the best way.",
-    effect: { social: 12, happiness: 6 },
+    effect: { social: 8, happiness: 4 },
   },
   {
     id: "corvallis-rain-stuck-inside",
@@ -433,7 +479,7 @@ export const SPECIAL_EVENTS = {
     title: "START Orientation",
     description:
       "Name games, campus tours, and free swag. You meet half your floor before sundown.",
-    effect: { social: 20, happiness: 10 },
+    effect: { social: 14, happiness: 7 },
     isMandatory: true,
   },
   "1-4": {
@@ -442,7 +488,7 @@ export const SPECIAL_EVENTS = {
       "First real exams land. If you were already drowning, the curve does not save you — if you were steady, you rise.",
     effect: (stats) => {
       const gpa = Number(stats?.gpa) || 0;
-      return gpa < 60 ? { gpa: -8 } : { gpa: 5 };
+      return gpa < 60 ? { gpa: -8 } : { gpa: 4 };
     },
     isMandatory: true,
   },
@@ -452,7 +498,7 @@ export const SPECIAL_EVENTS = {
       "Dead week is a lie and Reser is a dream. Either you cram through the wall or you close strong.",
     effect: (stats) => {
       const gpa = Number(stats?.gpa) || 0;
-      return gpa < 50 ? { gpa: -10 } : { gpa: 8 };
+      return gpa < 50 ? { gpa: -10 } : { gpa: 6 };
     },
     isMandatory: true,
   },
@@ -460,21 +506,21 @@ export const SPECIAL_EVENTS = {
     title: "Beaver Classic Football Weekend",
     description:
       "Tailgates, chants, and zero regret until Monday. Homework can wait; the Beavers cannot.",
-    effect: { social: 15, happiness: 12, gpa: -5 },
+    effect: { social: 11, happiness: 8, gpa: -5 },
     isMandatory: false,
   },
   "3-4": {
     title: "Junior Internship Fair at MU",
     description:
       "Resume paper, free pens, and recruiters who actually read your major. The career path gets real.",
-    effect: { gpa: 5, social: 8 },
+    effect: { gpa: 4, social: 6 },
     isMandatory: false,
   },
   "4-1": {
     title: "Senior Week Kickoff",
     description:
       "Caps ordered, cameras out, and every goodbye starts with “we should hang this summer.”",
-    effect: { happiness: 15, social: 10 },
+    effect: { happiness: 11, social: 7 },
     isMandatory: false,
   },
 };

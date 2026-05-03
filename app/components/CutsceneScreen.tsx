@@ -75,6 +75,8 @@ export function buildWeekActivitySummary(selectionIds: string[]): string {
         return `joined a club at ${loc}${suf}`;
       case "study-group-kelley":
         return `had a study group at ${loc}${suf}`;
+      case "gambling":
+        return `went to a gambling night${suf}`;
       default:
         return `${a.name.toLowerCase()} at ${loc}${suf}`;
     }
@@ -187,13 +189,6 @@ export default function CutsceneScreen({
     lineHeight: 0,
   };
 
-  const summaryStyle: CSSProperties = {
-    color: "rgba(255, 255, 255, 0.88)",
-    fontSize: "1rem",
-    lineHeight: 1.65,
-    marginBottom: "0.85rem",
-  };
-
   const storyStyle: CSSProperties = {
     color: "rgba(255, 255, 255, 0.58)",
     fontSize: "0.98rem",
@@ -276,7 +271,6 @@ export default function CutsceneScreen({
   };
 
   const hasScene = sceneImage.trim().length > 0;
-  const activitySummary = buildWeekActivitySummary(weekSelections);
   const storyTrimmed = storyText.trim();
 
   return (
@@ -300,7 +294,6 @@ export default function CutsceneScreen({
           </div>
         ) : null}
 
-        <p style={summaryStyle}>{activitySummary}</p>
         {storyTrimmed ? <p style={storyStyle}>{storyTrimmed}</p> : null}
 
         {extraEvent ? (

@@ -111,6 +111,73 @@ export function applyPassiveEffects(stats, options) {
  * @param {Record<string, number>} stats
  * @returns {{ isOver: boolean, reason: string }}
  */
+/**
+ * First frat-party coke offer: choice 0 = take it (40% overdose game over), 1 = hard pass.
+ * @param {number} choiceIndex
+ * @returns {{ gameOver?: boolean; happiness?: number; social?: number; message: string }}
+ */
+export function resolveFirstPartyCokeChoice(choiceIndex) {
+  if (choiceIndex === 1) {
+    return {
+      happiness: 5,
+      social: 2,
+      message: "You kept it moving. Still had a good night.",
+    };
+  }
+  if (Math.random() < 0.4) {
+    return {
+      gameOver: true,
+      message: "You overdosed. Your college story ends here.",
+    };
+  }
+  return {
+    happiness: 100,
+    message:
+      "The night was unreal. You're not sure you've ever felt more alive.",
+  };
+}
+
+/** Pending job application: 70% acceptance if GPA already qualified at apply time. */
+export function rollJobApplicationAccepted() {
+  return Math.random() < 0.7;
+}
+
+/** Crypto weekly: 50% gain 30% of balance vs lose 30%. */
+export function rollCryptoWeeklyGain() {
+  return Math.random() < 0.5;
+}
+
+/**
+ * @param {number} currentMoney
+ * @returns {number} signed dollar change (gain positive, loss negative)
+ */
+export function cryptoWeeklyMoneyDelta(currentMoney) {
+  const m = Math.max(0, Math.round(Number(currentMoney) || 0));
+  const amt = Math.round(m * 0.3);
+  if (amt <= 0) return 0;
+  return rollCryptoWeeklyGain() ? amt : -amt;
+}
+
+/**
+ * @returns {number} uniform in [0.3, 2.0]
+ */
+export function rollGamblingMultiplier() {
+  return 0.3 + Math.random() * 1.7;
+}
+
+/**
+ * Net money change from gambling (bet is stake; multiplier applied to payout).
+ * @param {number} betAmount
+ * @param {number} multiplier
+ * @returns {number}
+ */
+export function gamblingNetMoneyDelta(betAmount, multiplier) {
+  const b = Math.max(0, Math.round(Number(betAmount) || 0));
+  const m = Number(multiplier);
+  if (!Number.isFinite(m) || b <= 0) return 0;
+  return Math.round(b * (m - 1));
+}
+
 export function checkGameOver(stats) {
   const health = Number(stats?.health) || 0;
   const gpa = Number(stats?.gpa) || 0;

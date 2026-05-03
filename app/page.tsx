@@ -12,12 +12,19 @@ import {
   getBlazersBetResult,
   rollFakeIdArrest,
   jobIsAvailable,
+  FIRST_PARTY_COKE_SCENARIO,
+  FIRST_PARTY_COKE_SCENARIO_ID,
 } from "./lib/gameData.js";
 import {
   applyWeek,
   applyPassiveEffects,
   checkGameOver,
   getEnding,
+  resolveFirstPartyCokeChoice,
+  rollJobApplicationAccepted,
+  cryptoWeeklyMoneyDelta,
+  rollGamblingMultiplier,
+  gamblingNetMoneyDelta,
 } from "./lib/gameLogic.js";
 import { generateCutscene, generateCustomEnding } from "./lib/aiCutscene.js";
 import { getScenarioForWeek } from "./lib/scenarios.js";
@@ -26,6 +33,7 @@ import StatBars from "./components/StatBars";
 import ActivityPicker from "./components/ActivityPicker";
 import ScenarioPopup, {
   type ScenarioForPopup,
+  type ScenarioConsequence,
 } from "./components/ScenarioPopup";
 import CutsceneScreen, {
   type CutsceneExtraEvent,
@@ -99,6 +107,7 @@ const ACTIVITY_SHORT_LABEL: Record<string, string> = {
   "sleep-in": "Sleep",
   "club-mu": "Club",
   "study-group-kelley": "Study group",
+  gambling: "Gamble",
 };
 
 function activityShortLabel(activityId: string): string {
@@ -304,6 +313,32 @@ export default function Home() {
   const [activeScenario, setActiveScenario] = useState<ScenarioForPopup | null>(
     null,
   );
+  const [firstPartyDone, setFirstPartyDone] = useState(false);
+  const [kalshiStreakerDone, setKalshiStreakerDone] = useState(false);
+  const [pendingJobId, setPendingJobId] = useState<string | null>(null);
+  const [jobResultModal, setJobResultModal] = useState<{
+    accepted: boolean;
+    jobId: string;
+    jobName: string;
+    epCost: number;
+    weeklyPay: number;
+  } | null>(null);
+  const [cryptoJobApplyId, setCryptoJobApplyId] = useState<string | null>(null);
+  const [gamblingModalOpen, setGamblingModalOpen] = useState(false);
+  const [gamblingBetAmount, setGamblingBetAmount] = useState<number | null>(null);
+  const [gamblingMoneyNet, setGamblingMoneyNet] = useState<number | null>(null);
+  const [gamblingBetInput, setGamblingBetInput] = useState("");
+  const [gamblingResultModal, setGamblingResultModal] = useState<string | null>(
+    null,
+  );
+  const [kalshiModalOpen, setKalshiModalOpen] = useState(false);
+  const [kalshiIncludeThisWeek, setKalshiIncludeThisWeek] = useState(false);
+  const [jobNoPayModal, setJobNoPayModal] = useState(false);
+  const [cryptoFiredModal, setCryptoFiredModal] = useState(false);
+  const [kalshiApplyThisResolution, setKalshiApplyThisResolution] =
+    useState(false);
+  const kalshiRollStartedRef = useRef(false);
+  const pendingJobIdRef = useRef<string | null>(null);
   const [weekHistory, setWeekHistory] = useState<WeekHistoryEntry[]>([]);
   const [weeklyPurchases, setWeeklyPurchases] = useState<string[]>([]);
   const [weeklyShopSpend, setWeeklyShopSpend] = useState(0);
@@ -328,6 +363,10 @@ export default function Home() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    pendingJobIdRef.current = pendingJobId;
+  }, [pendingJobId]);
 
   if (!gameStarted) {
     return (
@@ -363,6 +402,22 @@ export default function Home() {
           setUsedScenarioIds([]);
           setPendingApiScenario(null);
           setActiveScenario(null);
+          setFirstPartyDone(false);
+          setKalshiStreakerDone(false);
+          setPendingJobId(null);
+          setJobResultModal(null);
+          setCryptoJobApplyId(null);
+          setGamblingModalOpen(false);
+          setGamblingBetAmount(null);
+          setGamblingMoneyNet(null);
+          setGamblingBetInput("");
+          setGamblingResultModal(null);
+          setKalshiModalOpen(false);
+          setKalshiIncludeThisWeek(false);
+          setJobNoPayModal(false);
+          setCryptoFiredModal(false);
+          setKalshiApplyThisResolution(false);
+          kalshiRollStartedRef.current = false;
           setWeekHistory([]);
           setWeeklyPurchases([]);
           setWeeklyShopSpend(0);
@@ -422,6 +477,12 @@ export default function Home() {
     activeJobIdAtStart: string | null,
     activePerksSnapshot: ActivePerk[],
     fakeidRiskAtStart: FakeIdRisk,
+    resolutionOpts?: {
+      jobHadEnoughEp?: boolean;
+      gamblingBet?: number;
+      gamblingMoneyNet?: number | null;
+      kalshiThisWeek?: boolean;
+    },
   ) {
     let s: WeekStats = normalizeWeekStats(
       applyWeek(statsBefore, selections, ACTIVITIES),
@@ -469,10 +530,30 @@ export default function Home() {
       }
     }
 
-    const job = activeJobIdAtStart
-      ? JOBS.find((j) => j.id === activeJobIdAtStart)
-      : null;
-    let moneyNetChange = job ? job.weeklyPay : 0;
+    let moneyNetChange = 0;
+
+    if (resolutionOpts?.kalshiThisWeek) {
+      s = normalizeWeekStats(
+        applyStatDelta(s, { happiness: -10, social: 20 }),
+      );
+      moneyNetChange += 14000;
+    }
+
+    const gamblingBet = Math.max(
+      0,
+      Math.round(Number(resolutionOpts?.gamblingBet) || 0),
+    );
+    if (gamblingBet > 0) {
+      const preset = resolutionOpts?.gamblingMoneyNet;
+      const net =
+        typeof preset === "number" && Number.isFinite(preset)
+          ? preset
+          : gamblingNetMoneyDelta(
+              gamblingBet,
+              rollGamblingMultiplier(),
+            );
+      moneyNetChange += net;
+    }
 
     const arrest = rollFakeIdArrest(
       fakeidRiskAtStart === "high" || fakeidRiskAtStart === "low"
@@ -508,11 +589,36 @@ export default function Home() {
       }
     }
 
+    const job = activeJobIdAtStart
+      ? JOBS.find((j) => j.id === activeJobIdAtStart)
+      : null;
+    let jobNoPay = false;
+    let cryptoFired = false;
+    const jobOk =
+      resolutionOpts?.jobHadEnoughEp !== false || Boolean(job?.isCrypto);
+
+    if (job) {
+      if (job.isCrypto) {
+        const baseMoney = moneyBefore + moneyNetChange;
+        const cdelta = cryptoWeeklyMoneyDelta(baseMoney);
+        moneyNetChange += cdelta;
+        if (clampMoney(moneyBefore + moneyNetChange) <= 0) {
+          cryptoFired = true;
+        }
+      } else if (!jobOk) {
+        jobNoPay = true;
+      } else {
+        moneyNetChange += job.weeklyPay ?? 0;
+      }
+    }
+
     const finalStats = normalizeWeekStats(s);
     const sceneFile = pickSceneImageFromSelections(selections);
 
     const jobLine = job
-      ? `${job.name} at ${job.location} ($${job.weeklyPay}/week, ${job.epCost} EP/week)`
+      ? job.isCrypto
+        ? `${job.name} at ${job.location} (crypto — ${job.epCost} EP/week, volatile)`
+        : `${job.name} at ${job.location} ($${job.weeklyPay}/week, ${job.epCost} EP/week)`
       : "no part-time job";
     const moneyForNarrative = clampMoney(moneyBefore + moneyNetChange);
 
@@ -567,23 +673,127 @@ export default function Home() {
       moneyNetChange,
       specialEventHist,
       randomEventHist,
+      jobNoPay,
+      cryptoFired,
     };
   }
 
+  function showCareerToast(message: string) {
+    setToast({ message, visible: true });
+    setTimeout(() => setToast({ message: "", visible: false }), 2800);
+  }
+
+  function handleJobApplyClick(jobId: string) {
+    if (activeJobId && activeJobId !== jobId) {
+      showCareerToast("Quit your current job first.");
+      return;
+    }
+    if (pendingJobId) {
+      showCareerToast("You already have a pending application.");
+      return;
+    }
+    const job = JOBS.find((j) => j.id === jobId);
+    if (!job) return;
+    if (job.isCrypto) {
+      setCryptoJobApplyId(jobId);
+      return;
+    }
+    const minG = job.minGpa != null ? Number(job.minGpa) : 0;
+    if ((stats.gpa ?? 0) < minG) {
+      showCareerToast(
+        "You don't meet the GPA requirement for this job.",
+      );
+      return;
+    }
+    setPendingJobId(jobId);
+    showCareerToast(
+      "Application submitted. You'll hear back next week.",
+    );
+  }
+
+  function confirmCryptoJobApply() {
+    if (!cryptoJobApplyId) return;
+    setPendingJobId(cryptoJobApplyId);
+    setCryptoJobApplyId(null);
+    showCareerToast(
+      "Application submitted. You'll hear back next week.",
+    );
+  }
+
+  function handleGamblingBetSubmit() {
+    const n = Number(gamblingBetInput);
+    if (!Number.isFinite(n) || n <= 0) {
+      showCareerToast("Enter a valid positive dollar amount.");
+      return;
+    }
+    const bet = Math.floor(n);
+    if (bet > money) {
+      showCareerToast("You can't bet more than you have.");
+      return;
+    }
+      setGamblingBetAmount(bet);
+      const mult = rollGamblingMultiplier();
+      const net = gamblingNetMoneyDelta(bet, mult);
+      setGamblingMoneyNet(net);
+      const end = bet + net;
+    setGamblingResultModal(
+      net >= 0
+        ? `You walked away with $${end}.`
+        : `You lost $${Math.abs(net)}.`,
+    );
+    setGamblingModalOpen(false);
+  }
+
+  function acknowledgeGamblingResult() {
+    setGamblingResultModal(null);
+    handleActivityConfirm();
+  }
+
+  function confirmKalshiStreaker() {
+    setKalshiModalOpen(false);
+    setKalshiStreakerDone(true);
+    setKalshiApplyThisResolution(true);
+    kalshiRollStartedRef.current = false;
+    handleActivityConfirm();
+  }
+
   function handleActivityConfirm() {
+    const selections = [...weekSelections];
+
+    if (!firstPartyDone && selections.includes("frat-party-26th")) {
+      setActiveScenario(FIRST_PARTY_COKE_SCENARIO);
+      setGamePhase("scenario");
+      return;
+    }
+
+    if (selections.includes("gambling") && gamblingBetAmount === null) {
+      setGamblingModalOpen(true);
+      return;
+    }
+
+    if (
+      !kalshiStreakerDone &&
+      selections.includes("football-reser") &&
+      !kalshiApplyThisResolution
+    ) {
+      if (!kalshiRollStartedRef.current) {
+        kalshiRollStartedRef.current = true;
+        if (Math.random() < 0.5) {
+          setKalshiModalOpen(true);
+          return;
+        }
+      }
+    }
+
     const job = activeJobId
       ? JOBS.find((j) => j.id === activeJobId)
       : null;
     const jobEp = job?.epCost ?? 0;
-    if (jobEp > 0 && energyRemaining < jobEp) {
-      window.alert(
-        `Your job uses ${jobEp} EP this week, but you only have ${energyRemaining} EP left after activities. Remove some activities or quit your job in Career before ending the week.`,
-      );
-      return;
-    }
+    const jobHadEnoughEp = jobEp === 0 || energyRemaining >= jobEp;
+
+    kalshiRollStartedRef.current = false;
 
     const statsBefore: WeekStats = { ...stats };
-    const selections = [...weekSelections];
     const year = currentYear;
     const week = currentWeek;
     const baseline = { ...week1BaselineStats };
@@ -612,6 +822,8 @@ export default function Home() {
         moneyNetChange,
         specialEventHist,
         randomEventHist,
+        jobNoPay,
+        cryptoFired,
       } = await resolveWeekEnd(
         statsBefore,
         selections,
@@ -624,7 +836,18 @@ export default function Home() {
         jobSnap,
         perksSnap,
         riskSnap,
+        {
+          jobHadEnoughEp,
+          gamblingBet: gamblingBetAmount ?? 0,
+          gamblingMoneyNet: gamblingMoneyNet,
+          kalshiThisWeek: kalshiApplyThisResolution,
+        },
       );
+
+      setKalshiApplyThisResolution(false);
+      setGamblingBetAmount(null);
+      setGamblingMoneyNet(null);
+      setGamblingBetInput("");
 
       const activitiesChosen = selections.map((id) => {
         const a = ACTIVITIES.find((ac) => ac.id === id);
@@ -639,7 +862,7 @@ export default function Home() {
         week,
         activitiesChosen,
         jobWorked: jobObj?.name ?? null,
-        moneyEarned: jobObj?.weeklyPay ?? 0,
+        moneyEarned: jobNoPay ? 0 : (jobObj?.weeklyPay ?? 0),
         moneySpent: weeklyShopSpendSnap,
         shopItemsBought: [...weeklyPurchasesSnap],
         randomEvent: randomEventHist,
@@ -659,6 +882,12 @@ export default function Home() {
       setMoney((m) => clampMoney(m + moneyNetChange));
       setIsGeneratingStory(false);
 
+      if (jobNoPay) setJobNoPayModal(true);
+      if (cryptoFired) {
+        setCryptoFiredModal(true);
+        setActiveJobId(null);
+      }
+
       const over = checkGameOver(finalStats);
       if (over.isOver) {
         setGameOverReason(over.reason);
@@ -670,6 +899,26 @@ export default function Home() {
   }
 
   async function advanceAfterWeekResolved(latestStats: WeekStats) {
+    const pj = pendingJobIdRef.current;
+    if (pj) {
+      pendingJobIdRef.current = null;
+      setPendingJobId(null);
+      const accepted = rollJobApplicationAccepted();
+      const j = JOBS.find((x) => x.id === pj);
+      if (accepted && j) {
+        setActiveJobId(j.id);
+      }
+      if (j) {
+        setJobResultModal({
+          accepted,
+          jobId: pj,
+          jobName: j.name,
+          epCost: j.epCost,
+          weeklyPay: j.weeklyPay,
+        });
+      }
+    }
+
     if (currentWeek < 8) {
       setCurrentWeek((w) => w + 1);
       setWeekSelections([]);
@@ -734,12 +983,41 @@ export default function Home() {
     await advanceAfterWeekResolved(stats);
   }
 
-  function handleScenarioComplete(choiceIndex: number) {
+  function handleScenarioComplete(
+    choiceIndex: number,
+    resolved?: ScenarioConsequence,
+  ) {
     if (!activeScenario) return;
-    const raw = activeScenario.choices[choiceIndex]?.consequence;
+
+    if (activeScenario.id === FIRST_PARTY_COKE_SCENARIO_ID) {
+      const r = resolved;
+      if (!r) return;
+      if (r.gameOver) {
+        setGameOverReason(
+          String(r.message ?? "You overdosed. Your college story ends here."),
+        );
+        setFirstPartyDone(true);
+        setActiveScenario(null);
+        setGamePhase("gameover");
+        return;
+      }
+      const con = r as Record<string, unknown>;
+      const delta = deltaFromConsequence(con);
+      const nextStats = normalizeWeekStats(applyStatDelta(stats, delta));
+      setStats(nextStats);
+      setFirstPartyDone(true);
+      setActiveScenario(null);
+      handleActivityConfirm();
+      return;
+    }
+
+    const raw =
+      (resolved as Record<string, unknown> | undefined) ??
+      (activeScenario.choices[choiceIndex]?.consequence as
+        | Record<string, unknown>
+        | undefined);
     if (!raw || typeof raw !== "object") return;
-    const con = raw as Record<string, unknown>;
-    const delta = deltaFromConsequence(con);
+    const delta = deltaFromConsequence(raw);
     const nextStats = normalizeWeekStats(applyStatDelta(stats, delta));
     setStats(nextStats);
     setUsedScenarioIds((prev) => [
@@ -887,8 +1165,14 @@ export default function Home() {
       <ScenarioPopup
         key={activeScenario.id}
         scenario={activeScenario}
-        onComplete={(choiceIndex) => {
-          handleScenarioComplete(choiceIndex);
+        resolveChoiceConsequence={
+          activeScenario.id === FIRST_PARTY_COKE_SCENARIO_ID
+            ? (i) =>
+                resolveFirstPartyCokeChoice(i) as ScenarioConsequence
+            : undefined
+        }
+        onComplete={(choiceIndex, resolved) => {
+          handleScenarioComplete(choiceIndex, resolved);
         }}
       />
     );
@@ -907,6 +1191,7 @@ export default function Home() {
         statsBefore={before}
         statsAfter={after}
         extraEvent={cutsceneExtraEvent}
+        weekSelections={weekSelections}
         onContinue={() => {
           void handleCutsceneContinue();
         }}
@@ -1307,7 +1592,9 @@ export default function Home() {
               Quit current job
             </button>
           ) : null}
-          {JOBS.filter((job) => jobIsAvailable(job, currentYear)).map((job) => {
+          {JOBS.filter((job) =>
+            jobIsAvailable(job, currentYear, stats.gpa),
+          ).map((job) => {
             const isCurrent = activeJobId === job.id;
             return (
               <div
@@ -1339,7 +1626,11 @@ export default function Home() {
                     marginBottom: 6,
                   }}
                 >
-                  {job.location} · {job.epCost} EP/wk · ${job.weeklyPay}/wk
+                  {job.location} · {job.epCost} EP/wk · $
+                  {job.weeklyPay}/wk
+                  {job.minGpa != null && job.minGpa > 0
+                    ? ` · min GPA ${job.minGpa}`
+                    : ""}
                 </div>
                 <p
                   style={{
@@ -1355,7 +1646,7 @@ export default function Home() {
                   type="button"
                   className="osu-display-font"
                   disabled={isCurrent}
-                  onClick={() => setActiveJobId(job.id)}
+                  onClick={() => handleJobApplyClick(job.id)}
                   style={{
                     width: "100%",
                     padding: "8px 10px",
@@ -1884,6 +2175,423 @@ export default function Home() {
           }}
         >
           {toast.message}
+        </div>
+      ) : null}
+
+      {gamblingModalOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="gambling-modal-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 200,
+            backgroundColor: "rgba(0, 0, 0, 0.82)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+            boxSizing: "border-box",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 480,
+              backgroundColor: "#141210",
+              border: "1px solid rgba(215, 63, 9, 0.45)",
+              borderRadius: 14,
+              padding: "22px 20px",
+              color: "#fafaf9",
+            }}
+          >
+            <h2
+              id="gambling-modal-title"
+              className="osu-display-font"
+              style={{
+                margin: "0 0 14px",
+                fontSize: "clamp(0.5rem, 2vw, 0.7rem)",
+                color: "#fff",
+              }}
+            >
+              How much do you want to bet?
+            </h2>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={gamblingBetInput}
+              onChange={(e) => setGamblingBetInput(e.target.value)}
+              placeholder={`Max $${money}`}
+              style={{
+                width: "100%",
+                marginBottom: 14,
+                padding: "10px 12px",
+                borderRadius: 8,
+                border: "1px solid rgba(255,255,255,0.2)",
+                background: "#0d0d0d",
+                color: "#fff",
+                fontSize: 16,
+                boxSizing: "border-box",
+              }}
+            />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className="osu-display-font"
+                onClick={() => {
+                  setGamblingModalOpen(false);
+                  setGamblingBetInput("");
+                }}
+                style={{
+                  padding: "10px 16px",
+                  borderRadius: 10,
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  background: "transparent",
+                  color: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="osu-display-font"
+                onClick={handleGamblingBetSubmit}
+                style={{
+                  padding: "10px 16px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#D73F09",
+                  color: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {gamblingResultModal ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 200,
+            backgroundColor: "rgba(0, 0, 0, 0.82)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 440,
+              backgroundColor: "#141210",
+              border: "1px solid rgba(215, 63, 9, 0.45)",
+              borderRadius: 14,
+              padding: "22px 20px",
+              color: "#fafaf9",
+            }}
+          >
+            <p style={{ margin: "0 0 18px", lineHeight: 1.55, fontSize: 15 }}>
+              {gamblingResultModal}
+            </p>
+            <button
+              type="button"
+              className="osu-display-font"
+              onClick={acknowledgeGamblingResult}
+              style={{
+                width: "100%",
+                padding: "12px",
+                borderRadius: 10,
+                border: "none",
+                background: "#D73F09",
+                color: "#fff",
+                cursor: "pointer",
+              }}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {kalshiModalOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 200,
+            backgroundColor: "rgba(0, 0, 0, 0.82)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 500,
+              backgroundColor: "#141210",
+              border: "1px solid rgba(215, 63, 9, 0.45)",
+              borderRadius: 14,
+              padding: "22px 20px",
+              color: "#fafaf9",
+            }}
+          >
+            <h2
+              className="osu-display-font"
+              style={{ margin: "0 0 10px", fontSize: "0.65rem", color: "#fff" }}
+            >
+              Kalshi has insane odds on the next streaker at Reser
+            </h2>
+            <p style={{ margin: "0 0 18px", lineHeight: 1.55, opacity: 0.9 }}>
+              Your friend pulls up the app. &quot;Dude the odds are ridiculous.
+              We could make 15k.&quot; The fine is $1000 and a night in jail if
+              you get caught.
+            </p>
+            <button
+              type="button"
+              className="osu-display-font"
+              onClick={confirmKalshiStreaker}
+              style={{
+                width: "100%",
+                padding: "12px",
+                borderRadius: 10,
+                border: "none",
+                background: "#D73F09",
+                color: "#fff",
+                cursor: "pointer",
+              }}
+            >
+              What a night — let&apos;s go
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {jobResultModal ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 200,
+            backgroundColor: "rgba(0, 0, 0, 0.82)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 480,
+              backgroundColor: "#141210",
+              border: "1px solid rgba(215, 63, 9, 0.45)",
+              borderRadius: 14,
+              padding: "22px 20px",
+              color: "#fafaf9",
+            }}
+          >
+            <p style={{ margin: "0 0 18px", lineHeight: 1.55, fontSize: 15 }}>
+              {jobResultModal.accepted
+                ? `You got the job! You're now working as ${jobResultModal.jobName}. ${jobResultModal.epCost} EP will be charged each week and you'll earn $${jobResultModal.weeklyPay}/week.`
+                : "Sorry, your application was not accepted."}
+            </p>
+            <button
+              type="button"
+              className="osu-display-font"
+              onClick={() => setJobResultModal(null)}
+              style={{
+                width: "100%",
+                padding: "12px",
+                borderRadius: 10,
+                border: "none",
+                background: "#D73F09",
+                color: "#fff",
+                cursor: "pointer",
+              }}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {jobNoPayModal ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 200,
+            backgroundColor: "rgba(0, 0, 0, 0.82)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 440,
+              backgroundColor: "#141210",
+              border: "1px solid rgba(215, 63, 9, 0.45)",
+              borderRadius: 14,
+              padding: "22px 20px",
+              color: "#fafaf9",
+            }}
+          >
+            <p style={{ margin: "0 0 18px", lineHeight: 1.55 }}>
+              You didn&apos;t have enough energy for work this week. No pay.
+            </p>
+            <button
+              type="button"
+              className="osu-display-font"
+              onClick={() => setJobNoPayModal(false)}
+              style={{
+                width: "100%",
+                padding: "12px",
+                borderRadius: 10,
+                border: "none",
+                background: "#D73F09",
+                color: "#fff",
+                cursor: "pointer",
+              }}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {cryptoFiredModal ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 200,
+            backgroundColor: "rgba(0, 0, 0, 0.82)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 440,
+              backgroundColor: "#141210",
+              border: "1px solid rgba(215, 63, 9, 0.45)",
+              borderRadius: 14,
+              padding: "22px 20px",
+              color: "#fafaf9",
+            }}
+          >
+            <p style={{ margin: "0 0 18px", lineHeight: 1.55 }}>
+              You&apos;re broke. You can no longer trade crypto.
+            </p>
+            <button
+              type="button"
+              className="osu-display-font"
+              onClick={() => setCryptoFiredModal(false)}
+              style={{
+                width: "100%",
+                padding: "12px",
+                borderRadius: 10,
+                border: "none",
+                background: "#D73F09",
+                color: "#fff",
+                cursor: "pointer",
+              }}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      {cryptoJobApplyId ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 200,
+            backgroundColor: "rgba(0, 0, 0, 0.82)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 480,
+              backgroundColor: "#141210",
+              border: "1px solid rgba(215, 63, 9, 0.45)",
+              borderRadius: 14,
+              padding: "22px 20px",
+              color: "#fafaf9",
+            }}
+          >
+            <p style={{ margin: "0 0 18px", lineHeight: 1.55 }}>
+              ⚠️ High Risk: Crypto trading is volatile. You may lose money. Are
+              you sure?
+            </p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className="osu-display-font"
+                onClick={() => setCryptoJobApplyId(null)}
+                style={{
+                  padding: "10px 16px",
+                  borderRadius: 10,
+                  border: "1px solid rgba(255,255,255,0.2)",
+                  background: "transparent",
+                  color: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="osu-display-font"
+                onClick={confirmCryptoJobApply}
+                style={{
+                  padding: "10px 16px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#D73F09",
+                  color: "#fff",
+                  cursor: "pointer",
+                }}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
 
