@@ -3231,7 +3231,7 @@ export default function Home() {
           style={{
             position: "fixed",
             bottom: 24,
-            right: 24,
+            left: 24,
             zIndex: 20,
             display: "flex",
             alignItems: "center",
