@@ -55,6 +55,13 @@ import GameOver from "./components/GameOver";
 import GraduationScreen, {
   type GraduationEnding,
 } from "./components/GraduationScreen";
+import {
+  getSoundMuted,
+  setSoundMuted,
+  playConfirm,
+  playGameOver,
+  playStatDeltaFromStats,
+} from "./lib/sounds.js";
 
 type GamePhase =
   | "picking"
@@ -330,6 +337,40 @@ function pickSceneImageFromSelections(weekSelections: string[]): string {
   return activity?.sceneImage ?? "";
 }
 
+function SoundMuteHudButton({
+  muted,
+  onToggle,
+}: {
+  muted: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={muted}
+      aria-label={muted ? "Unmute game sounds" : "Mute game sounds"}
+      className="osu-display-font osu-display-font--micro"
+      style={{
+        width: 44,
+        height: 44,
+        borderRadius: 10,
+        border: "2px solid rgba(255,255,255,0.25)",
+        background: "rgba(26, 26, 26, 0.92)",
+        color: "#FFFFFF",
+        fontSize: "1.1rem",
+        cursor: "pointer",
+        lineHeight: 1,
+        padding: 0,
+        flexShrink: 0,
+        boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
+      }}
+    >
+      {muted ? "🔇" : "🔊"}
+    </button>
+  );
+}
+
 export default function Home() {
   const [playerName, setPlayerName] = useState("");
   const [playerMajor, setPlayerMajor] = useState("");
@@ -433,6 +474,17 @@ export default function Home() {
     pendingJobIdRef.current = pendingJobId;
   }, [pendingJobId]);
 
+  const [soundMutedUI, setSoundMutedUI] = useState(false);
+  useEffect(() => {
+    setSoundMutedUI(getSoundMuted());
+  }, []);
+
+  function toggleSoundMute() {
+    const next = !getSoundMuted();
+    setSoundMuted(next);
+    setSoundMutedUI(next);
+  }
+
   if (!gameStarted) {
     return (
       <StartScreen
@@ -507,29 +559,53 @@ export default function Home() {
 
   if (gamePhase === "gameover") {
     return (
-      <GameOver
-        reason={gameOverReason}
-        week={currentWeek}
-        year={currentYear}
-        finalStats={stats}
-        onRestart={() => {
-          setGameStarted(false);
-        }}
-      />
+      <>
+        <div
+          style={{
+            position: "fixed",
+            top: 16,
+            right: 16,
+            zIndex: 100,
+          }}
+        >
+          <SoundMuteHudButton muted={soundMutedUI} onToggle={toggleSoundMute} />
+        </div>
+        <GameOver
+          reason={gameOverReason}
+          week={currentWeek}
+          year={currentYear}
+          finalStats={stats}
+          onRestart={() => {
+            setGameStarted(false);
+          }}
+        />
+      </>
     );
   }
 
   if (gamePhase === "graduation") {
     return (
-      <GraduationScreen
-        playerName={playerName}
-        ending={finalEnding}
-        aiEndingText={aiEndingText}
-        finalStats={stats}
-        onRestart={() => {
-          setGameStarted(false);
-        }}
-      />
+      <>
+        <div
+          style={{
+            position: "fixed",
+            top: 16,
+            right: 16,
+            zIndex: 100,
+          }}
+        >
+          <SoundMuteHudButton muted={soundMutedUI} onToggle={toggleSoundMute} />
+        </div>
+        <GraduationScreen
+          playerName={playerName}
+          ending={finalEnding}
+          aiEndingText={aiEndingText}
+          finalStats={stats}
+          onRestart={() => {
+            setGameStarted(false);
+          }}
+        />
+      </>
     );
   }
 
@@ -885,6 +961,7 @@ export default function Home() {
     const kalshiChoiceSnap = pendingKalshiChoiceRef.current;
     pendingKalshiChoiceRef.current = null;
 
+    playConfirm();
     setIsGeneratingStory(true);
     setActivitiesPanelOpen(false);
     setCareerPanelOpen(false);
@@ -987,8 +1064,10 @@ export default function Home() {
         setActiveJobId(null);
       }
 
+      playStatDeltaFromStats(statsBefore, finalStats);
       const over = checkGameOver(finalStats);
       if (over.isOver) {
+        playGameOver();
         setGameOverReason(over.reason);
         setGamePhase("gameover");
       } else {
@@ -1094,6 +1173,7 @@ export default function Home() {
       const r = resolved;
       if (!r) return;
       if (r.gameOver) {
+        playGameOver();
         setGameOverReason(
           String(r.message ?? "You overdosed. Your college story ends here."),
         );
@@ -1132,6 +1212,7 @@ export default function Home() {
     if (!raw || typeof raw !== "object") return;
     const delta = deltaFromConsequence(raw);
     const nextStats = normalizeWeekStats(applyStatDelta(stats, delta));
+    playStatDeltaFromStats(stats, nextStats);
     setStats(nextStats);
     const cashDelta = moneyDeltaFromConsequence(raw);
     if (cashDelta !== 0) {
@@ -1144,6 +1225,7 @@ export default function Home() {
     setActiveScenario(null);
     const over = checkGameOver(nextStats);
     if (over.isOver) {
+      playGameOver();
       setGameOverReason(over.reason);
       setGamePhase("gameover");
       return;
@@ -1409,19 +1491,31 @@ export default function Home() {
 
   if (gamePhase === "scenario" && activeScenario) {
     return (
-      <ScenarioPopup
-        key={activeScenario.id}
-        scenario={activeScenario}
-        resolveChoiceConsequence={
-          activeScenario.id === FIRST_PARTY_COKE_SCENARIO_ID
-            ? (i) =>
-                resolveFirstPartyCokeChoice(i) as ScenarioConsequence
-            : undefined
-        }
-        onComplete={(choiceIndex, resolved) => {
-          handleScenarioComplete(choiceIndex, resolved);
-        }}
-      />
+      <>
+        <div
+          style={{
+            position: "fixed",
+            top: 16,
+            right: 16,
+            zIndex: 100,
+          }}
+        >
+          <SoundMuteHudButton muted={soundMutedUI} onToggle={toggleSoundMute} />
+        </div>
+        <ScenarioPopup
+          key={activeScenario.id}
+          scenario={activeScenario}
+          resolveChoiceConsequence={
+            activeScenario.id === FIRST_PARTY_COKE_SCENARIO_ID
+              ? (i) =>
+                  resolveFirstPartyCokeChoice(i) as ScenarioConsequence
+              : undefined
+          }
+          onComplete={(choiceIndex, resolved) => {
+            handleScenarioComplete(choiceIndex, resolved);
+          }}
+        />
+      </>
     );
   }
 
@@ -1429,7 +1523,18 @@ export default function Home() {
     const before = cutsceneStatsBefore ?? stats;
     const after = cutsceneStatsAfter ?? stats;
     return (
-      <CutsceneScreen
+      <>
+        <div
+          style={{
+            position: "fixed",
+            top: 16,
+            right: 16,
+            zIndex: 100,
+          }}
+        >
+          <SoundMuteHudButton muted={soundMutedUI} onToggle={toggleSoundMute} />
+        </div>
+        <CutsceneScreen
         isLoading={isGeneratingStory}
         storyText={storyText}
         sceneImage={sceneImageFilename}
@@ -1443,6 +1548,7 @@ export default function Home() {
           void handleCutsceneContinue();
         }}
       />
+      </>
     );
   }
 
@@ -1659,6 +1765,7 @@ export default function Home() {
           gap: 8,
         }}
       >
+        <SoundMuteHudButton muted={soundMutedUI} onToggle={toggleSoundMute} />
         <button
           type="button"
           className="osu-display-font osu-display-font--micro osu-hud-panel-btn"
