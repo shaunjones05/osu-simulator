@@ -50,23 +50,6 @@ export const ACTIVITIES = [
     effects: { gpa: 0, health: 5, happiness: 3, social: 2 },
   },
   {
-    id: "downward-dog-tiki-tuesday",
-    name: "Downward Dog Tiki Tuesday",
-    location: "Downward Dog, Corvallis",
-    epCost: 2,
-    sceneImage: "tiki.png",
-    effects: { gpa: -1, health: 3, happiness: 8, social: 8 },
-    minYear: 3,
-  },
-  {
-    id: "rivas-taco-shop",
-    name: "Late night Rivas Taco Shop",
-    location: "Rivas Taco Shop, Corvallis",
-    epCost: 1,
-    sceneImage: "rivas.png",
-    effects: { gpa: 0, health: 3, happiness: 7, social: 4 },
-  },
-  {
     id: "sleep-in",
     name: "Sleep in",
     location: "On-campus housing, Corvallis",
