@@ -164,18 +164,6 @@ const STAT_KEYS = [
   "attractiveness",
 ] as const;
 
-function formatStatDelta(delta: Record<string, number> | null | undefined) {
-  if (!delta) return "—";
-  const parts: string[] = [];
-  for (const k of STAT_KEYS) {
-    const v = delta[k];
-    if (typeof v === "number" && v !== 0) {
-      parts.push(`${k} ${v > 0 ? "+" : ""}${v}`);
-    }
-  }
-  return parts.length ? parts.join(" · ") : "—";
-}
-
 /** Fixed max EP per week for activity scheduling (see `gameData` energy by year). */
 const WEEKLY_EP_MAX = 5;
 
@@ -2275,34 +2263,12 @@ export default function Home() {
                 <div
                   style={{
                     fontSize: PANEL_FS,
-                    marginBottom: 6,
+                    marginBottom: 8,
                     color: "#1D9E75",
                     fontWeight: 700,
                   }}
                 >
                   ${item.cost}
-                </div>
-                <div
-                  style={{
-                    fontSize: PANEL_FS,
-                    marginBottom: 8,
-                    opacity: 0.88,
-                  }}
-                >
-                  Now:{" "}
-                  {formatStatDelta(item.effect as Record<string, number>)}
-                  {!item.isOneTime && item.weeklyBonus ? (
-                    <>
-                      {" "}
-                      · Weekly:{" "}
-                      {formatStatDelta(
-                        item.weeklyBonus as unknown as Record<
-                          string,
-                          number
-                        >,
-                      )}
-                    </>
-                  ) : null}
                 </div>
                 {ageLocked ? (
                   <p
@@ -2395,22 +2361,12 @@ export default function Home() {
                 <div
                   style={{
                     fontSize: PANEL_FS,
-                    marginBottom: 6,
+                    marginBottom: 8,
                     color: "#93C5FD",
                     fontWeight: 700,
                   }}
                 >
                   ${item.cost}
-                </div>
-                <div
-                  style={{
-                    fontSize: PANEL_FS,
-                    marginBottom: 8,
-                    opacity: 0.88,
-                  }}
-                >
-                  Now:{" "}
-                  {formatStatDelta(item.effect as Record<string, number>)}
                 </div>
                 <button
                   type="button"
@@ -2519,23 +2475,12 @@ export default function Home() {
                 <div
                   style={{
                     fontSize: PANEL_FS,
-                    marginBottom: 6,
+                    marginBottom: 8,
                     color: "#F87171",
                     fontWeight: 700,
                   }}
                 >
                   ${item.cost}
-                </div>
-                <div
-                  style={{
-                    fontSize: PANEL_FS,
-                    marginBottom: 8,
-                    opacity: 0.9,
-                    color: "#FEE2E2",
-                  }}
-                >
-                  Instant:{" "}
-                  {formatStatDelta(item.effect as Record<string, number>)}
                 </div>
                 <button
                   type="button"
