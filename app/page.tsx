@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ACTIVITIES,
   ACTIVITIES_FOR_SIM,
@@ -42,6 +42,7 @@ import {
 } from "./lib/gameLogic.js";
 import { generateCutscene, generateCustomEnding } from "./lib/aiCutscene.js";
 import { getScenarioForWeek } from "./lib/scenarios.js";
+import LoadingScreen from "./components/LoadingScreen";
 import StartScreen from "./components/StartScreen";
 import StatBars from "./components/StatBars";
 import ActivityPicker from "./components/ActivityPicker";
@@ -396,6 +397,7 @@ function SoundMuteHudButton({
 export default function Home() {
   const [playerName, setPlayerName] = useState("");
   const [playerMajor, setPlayerMajor] = useState("");
+  const [loading, setLoading] = useState(true);
   const [gameStarted, setGameStarted] = useState(false);
   const [currentYear, setCurrentYear] = useState(1);
   const [currentWeek, setCurrentWeek] = useState(1);
@@ -511,6 +513,14 @@ export default function Home() {
     const next = !getSoundMuted();
     setSoundMuted(next);
     setSoundMutedUI(next);
+  }
+
+  const handleLoadingDone = useCallback(() => {
+    setLoading(false);
+  }, []);
+
+  if (loading) {
+    return <LoadingScreen onDone={handleLoadingDone} />;
   }
 
   if (!gameStarted) {

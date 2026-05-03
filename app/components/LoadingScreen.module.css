@@ -1,0 +1,135 @@
+.screen {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #1a0a00;
+  box-sizing: border-box;
+  padding: 24px;
+}
+
+.mascotRow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 28px;
+}
+
+.beaver {
+  display: block;
+  font-size: clamp(4.5rem, 18vw, 7.5rem);
+  line-height: 1;
+  user-select: none;
+  animation: loadingBeaverWaddle 0.55s ease-in-out infinite alternate;
+  transform-origin: 50% 85%;
+}
+
+.shadow {
+  margin-top: -6px;
+  width: clamp(100px, 28vw, 160px);
+  height: clamp(22px, 5vw, 36px);
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(0, 0, 0, 0.65) 0%,
+    rgba(0, 0, 0, 0.35) 45%,
+    transparent 72%
+  );
+  animation: loadingShadowPulse 0.55s ease-in-out infinite alternate;
+  transform-origin: center center;
+}
+
+@keyframes loadingBeaverWaddle {
+  0% {
+    transform: translateY(6px) rotate(-16deg);
+  }
+  100% {
+    transform: translateY(-18px) rotate(16deg);
+  }
+}
+
+@keyframes loadingShadowPulse {
+  0% {
+    transform: scale(1, 1);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(0.68, 0.82);
+    opacity: 0.28;
+  }
+}
+
+.titleBlock {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.titleLine1 {
+  margin: 0;
+  color: #ff8c1a;
+  font-size: clamp(0.75rem, 4.2vw, 1.35rem);
+  line-height: 1.35;
+  text-shadow:
+    0 0 24px rgba(255, 140, 26, 0.45),
+    0 2px 0 rgba(0, 0, 0, 0.5);
+}
+
+.titleLine2 {
+  margin: 10px 0 0;
+  color: #ffb347;
+  font-size: clamp(0.55rem, 3.2vw, 1rem);
+  line-height: 1.4;
+  letter-spacing: 0.18em;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.45);
+}
+
+.loadingRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0;
+  color: rgba(255, 230, 200, 0.85);
+  font-size: clamp(0.45rem, 2.2vw, 0.72rem);
+  line-height: 1.5;
+}
+
+.dots {
+  display: inline-flex;
+  min-width: 1.2em;
+}
+
+.dots span {
+  animation: loadingDot 1.05s ease-in-out infinite;
+  opacity: 0.2;
+}
+
+.dots span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes loadingDot {
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: translateY(0);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+  70% {
+    opacity: 0.45;
+    transform: translateY(0);
+  }
+}
