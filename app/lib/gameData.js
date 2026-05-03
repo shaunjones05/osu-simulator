@@ -99,6 +99,35 @@ export const FIRST_PARTY_COKE_SCENARIO = {
   ],
 };
 
+/** One-time Kalshi / Reser streaker bet — triggered from UI when energy goes to football-reser (50% roll). */
+export const KALSHI_STREAKER_SCENARIO_ID = "kalshi-streaker-reser";
+
+export const KALSHI_STREAKER_SCENARIO = {
+  id: KALSHI_STREAKER_SCENARIO_ID,
+  title: "Kalshi has insane odds on the next Reser streaker",
+  description:
+    "Your friend pulls up the app. 'Dude the odds are stupid favorable. We could make $15k.' The fine is $1000 and a night in jail. You're definitely getting caught.",
+  choices: [
+    {
+      label: "Let's do it 🏃",
+      consequence: {
+        money: 14000,
+        happiness: -10,
+        social: 20,
+        message:
+          "You did it. Security tackled you at the 40-yard line. Spent the night in jail. Woke up $14,000 richer. Legend.",
+      },
+    },
+    {
+      label: "Hard pass",
+      consequence: {
+        happiness: 2,
+        message: "You watched someone else do it instead. Respect.",
+      },
+    },
+  ],
+};
+
 export const INITIAL_STATS = {
   gpa: 50,
   health: 70,

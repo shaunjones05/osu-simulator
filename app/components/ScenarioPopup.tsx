@@ -8,6 +8,8 @@ export type ScenarioConsequence = {
   health?: number;
   happiness?: number;
   social?: number;
+  /** Cash delta in dollars (e.g. Kalshi net payout). */
+  money?: number;
   message?: string;
   gameOver?: boolean;
 };
@@ -186,6 +188,20 @@ export default function ScenarioPopup({
           <>
             {consequence?.message ? (
               <div style={messageBox}>{consequence.message}</div>
+            ) : null}
+            {consequence?.money !== undefined &&
+            consequence.money !== 0 &&
+            typeof consequence.money === "number" ? (
+              <div
+                style={{
+                  ...statLine,
+                  marginBottom: 10,
+                  color: consequence.money > 0 ? "#4ade80" : "#f87171",
+                }}
+              >
+                {consequence.money > 0 ? "+" : ""}$
+                {Math.abs(Math.round(consequence.money)).toLocaleString()} cash
+              </div>
             ) : null}
             {consequence?.gameOver ? null : statDeltas.length > 0 ? (
               <div style={{ marginBottom: "16px" }}>

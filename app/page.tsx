@@ -14,6 +14,8 @@ import {
   jobIsAvailable,
   FIRST_PARTY_COKE_SCENARIO,
   FIRST_PARTY_COKE_SCENARIO_ID,
+  KALSHI_STREAKER_SCENARIO,
+  KALSHI_STREAKER_SCENARIO_ID,
 } from "./lib/gameData.js";
 import {
   applyWeek,
@@ -331,13 +333,10 @@ export default function Home() {
   const [gamblingResultModal, setGamblingResultModal] = useState<string | null>(
     null,
   );
-  const [kalshiModalOpen, setKalshiModalOpen] = useState(false);
-  const [kalshiIncludeThisWeek, setKalshiIncludeThisWeek] = useState(false);
   const [jobNoPayModal, setJobNoPayModal] = useState(false);
   const [cryptoFiredModal, setCryptoFiredModal] = useState(false);
-  const [kalshiApplyThisResolution, setKalshiApplyThisResolution] =
-    useState(false);
   const kalshiRollStartedRef = useRef(false);
+  const pendingKalshiChoiceRef = useRef<number | null>(null);
   const pendingJobIdRef = useRef<string | null>(null);
   const [weekHistory, setWeekHistory] = useState<WeekHistoryEntry[]>([]);
   const [weeklyPurchases, setWeeklyPurchases] = useState<string[]>([]);
@@ -412,12 +411,10 @@ export default function Home() {
           setGamblingMoneyNet(null);
           setGamblingBetInput("");
           setGamblingResultModal(null);
-          setKalshiModalOpen(false);
-          setKalshiIncludeThisWeek(false);
           setJobNoPayModal(false);
           setCryptoFiredModal(false);
-          setKalshiApplyThisResolution(false);
           kalshiRollStartedRef.current = false;
+          pendingKalshiChoiceRef.current = null;
           setWeekHistory([]);
           setWeeklyPurchases([]);
           setWeeklyShopSpend(0);
@@ -481,7 +478,8 @@ export default function Home() {
       jobHadEnoughEp?: boolean;
       gamblingBet?: number;
       gamblingMoneyNet?: number | null;
-      kalshiThisWeek?: boolean;
+      /** 0 = take the bet, 1 = hard pass; applied once in this resolve. */
+      kalshiChoice?: number | null;
     },
   ) {
     let s: WeekStats = normalizeWeekStats(
@@ -532,11 +530,14 @@ export default function Home() {
 
     let moneyNetChange = 0;
 
-    if (resolutionOpts?.kalshiThisWeek) {
+    const kc = resolutionOpts?.kalshiChoice;
+    if (kc === 0) {
       s = normalizeWeekStats(
         applyStatDelta(s, { happiness: -10, social: 20 }),
       );
       moneyNetChange += 14000;
+    } else if (kc === 1) {
+      s = normalizeWeekStats(applyStatDelta(s, { happiness: 2 }));
     }
 
     const gamblingBet = Math.max(
@@ -749,14 +750,6 @@ export default function Home() {
     handleActivityConfirm();
   }
 
-  function confirmKalshiStreaker() {
-    setKalshiModalOpen(false);
-    setKalshiStreakerDone(true);
-    setKalshiApplyThisResolution(true);
-    kalshiRollStartedRef.current = false;
-    handleActivityConfirm();
-  }
-
   function handleActivityConfirm() {
     const selections = [...weekSelections];
 
@@ -771,15 +764,12 @@ export default function Home() {
       return;
     }
 
-    if (
-      !kalshiStreakerDone &&
-      selections.includes("football-reser") &&
-      !kalshiApplyThisResolution
-    ) {
+    if (!kalshiStreakerDone && selections.includes("football-reser")) {
       if (!kalshiRollStartedRef.current) {
         kalshiRollStartedRef.current = true;
         if (Math.random() < 0.5) {
-          setKalshiModalOpen(true);
+          setActiveScenario(KALSHI_STREAKER_SCENARIO);
+          setGamePhase("scenario");
           return;
         }
       }
@@ -804,6 +794,8 @@ export default function Home() {
     const riskSnap = fakeidRisk;
     const weeklyPurchasesSnap = [...weeklyPurchases];
     const weeklyShopSpendSnap = weeklyShopSpend;
+    const kalshiChoiceSnap = pendingKalshiChoiceRef.current;
+    pendingKalshiChoiceRef.current = null;
 
     setIsGeneratingStory(true);
     setActivitiesPanelOpen(false);
@@ -840,11 +832,10 @@ export default function Home() {
           jobHadEnoughEp,
           gamblingBet: gamblingBetAmount ?? 0,
           gamblingMoneyNet: gamblingMoneyNet,
-          kalshiThisWeek: kalshiApplyThisResolution,
+          kalshiChoice: kalshiChoiceSnap,
         },
       );
 
-      setKalshiApplyThisResolution(false);
       setGamblingBetAmount(null);
       setGamblingMoneyNet(null);
       setGamblingBetInput("");
@@ -1006,6 +997,14 @@ export default function Home() {
       const nextStats = normalizeWeekStats(applyStatDelta(stats, delta));
       setStats(nextStats);
       setFirstPartyDone(true);
+      setActiveScenario(null);
+      handleActivityConfirm();
+      return;
+    }
+
+    if (activeScenario.id === KALSHI_STREAKER_SCENARIO_ID) {
+      pendingKalshiChoiceRef.current = choiceIndex;
+      setKalshiStreakerDone(true);
       setActiveScenario(null);
       handleActivityConfirm();
       return;
@@ -2318,63 +2317,6 @@ export default function Home() {
               }}
             >
               OK
-            </button>
-          </div>
-        </div>
-      ) : null}
-
-      {kalshiModalOpen ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 200,
-            backgroundColor: "rgba(0, 0, 0, 0.82)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 20,
-          }}
-        >
-          <div
-            style={{
-              width: "100%",
-              maxWidth: 500,
-              backgroundColor: "#141210",
-              border: "1px solid rgba(215, 63, 9, 0.45)",
-              borderRadius: 14,
-              padding: "22px 20px",
-              color: "#fafaf9",
-            }}
-          >
-            <h2
-              className="osu-display-font"
-              style={{ margin: "0 0 10px", fontSize: "0.65rem", color: "#fff" }}
-            >
-              Kalshi has insane odds on the next streaker at Reser
-            </h2>
-            <p style={{ margin: "0 0 18px", lineHeight: 1.55, opacity: 0.9 }}>
-              Your friend pulls up the app. &quot;Dude the odds are ridiculous.
-              We could make 15k.&quot; The fine is $1000 and a night in jail if
-              you get caught.
-            </p>
-            <button
-              type="button"
-              className="osu-display-font"
-              onClick={confirmKalshiStreaker}
-              style={{
-                width: "100%",
-                padding: "12px",
-                borderRadius: 10,
-                border: "none",
-                background: "#D73F09",
-                color: "#fff",
-                cursor: "pointer",
-              }}
-            >
-              What a night — let&apos;s go
             </button>
           </div>
         </div>
