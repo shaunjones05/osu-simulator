@@ -183,6 +183,9 @@ export default function Home() {
   const [shopPanelOpen, setShopPanelOpen] = useState(false);
   const [money, setMoney] = useState(500);
   const [fakeidRisk, setFakeidRisk] = useState<FakeIdRisk>("none");
+  const [fakeIdConfirmItemId, setFakeIdConfirmItemId] = useState<string | null>(
+    null,
+  );
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [ownedShopIds, setOwnedShopIds] = useState<string[]>([]);
   const [activePerks, setActivePerks] = useState<ActivePerk[]>([]);
@@ -220,6 +223,7 @@ export default function Home() {
           setShopPanelOpen(false);
           setMoney(500);
           setFakeidRisk("none");
+          setFakeIdConfirmItemId(null);
           setActiveJobId(null);
           setOwnedShopIds([]);
           setActivePerks([]);
@@ -555,21 +559,7 @@ export default function Home() {
     setShopPanelOpen(true);
   }
 
-  function buyShopItem(itemId: string) {
-    const item = SHOP.find((i) => i.id === itemId);
-    if (!item) return;
-    if (money < item.cost) return;
-    if (!item.isOneTime && ownedShopIds.includes(itemId)) return;
-
-    if (item.isFakeId) {
-      const hard =
-        item.fakeidRisk === "high"
-          ? "HIGH RISK: about 20% chance EACH WEEK of a fake-ID bust with Corvallis PD — big hits to social, happiness, and GPA, plus $200 in lawyer fees."
-          : "LOWER RISK: about 5% chance EACH WEEK of the same kind of arrest — milder stat penalties and $150 in fees.";
-      const msg = `${hard}\n\nBuying still adds the listed social boost once. OK to buy?`;
-      if (!window.confirm(msg)) return;
-    }
-
+  function completeShopPurchase(item: (typeof SHOP)[number]) {
     setMoney((m) => clampMoney(m - item.cost));
     setStats((st) => normalizeWeekStats(applyStatDelta(st, item.effect)));
     if (item.isFakeId && item.fakeidRisk) {
@@ -577,13 +567,47 @@ export default function Home() {
     }
     if (!item.isOneTime && item.weeklyBonus) {
       setOwnedShopIds((prev) =>
-        prev.includes(itemId) ? prev : [...prev, itemId],
+        prev.includes(item.id) ? prev : [...prev, item.id],
       );
       setActivePerks((prev) => [
         ...prev,
-        { shopItemId: itemId, weeklyBonus: item.weeklyBonus },
+        { shopItemId: item.id, weeklyBonus: item.weeklyBonus },
       ]);
     }
+  }
+
+  function buyShopItem(itemId: string) {
+    const item = SHOP.find((i) => i.id === itemId);
+    if (!item) return;
+    if (money < item.cost) return;
+    if (!item.isOneTime && ownedShopIds.includes(itemId)) return;
+
+    if (item.isFakeId) {
+      setFakeIdConfirmItemId(itemId);
+      return;
+    }
+
+    completeShopPurchase(item);
+  }
+
+  function confirmFakeIdPurchase() {
+    const id = fakeIdConfirmItemId;
+    if (!id) return;
+    const item = SHOP.find((i) => i.id === id);
+    if (!item?.isFakeId) {
+      setFakeIdConfirmItemId(null);
+      return;
+    }
+    if (money < item.cost) {
+      setFakeIdConfirmItemId(null);
+      return;
+    }
+    completeShopPurchase(item);
+    setFakeIdConfirmItemId(null);
+  }
+
+  function cancelFakeIdPurchase() {
+    setFakeIdConfirmItemId(null);
   }
 
   const activeJob = activeJobId
@@ -630,6 +654,13 @@ export default function Home() {
       : energyRemaining <= 4
         ? "#D73F09"
         : "#FFFFFF";
+
+  const fakeIdModalItem =
+    fakeIdConfirmItemId != null
+      ? SHOP.find(
+          (i) => i.id === fakeIdConfirmItemId && "isFakeId" in i && i.isFakeId,
+        )
+      : undefined;
 
   return (
     <>
@@ -946,10 +977,11 @@ export default function Home() {
             weekSelections={weekSelections}
             onAdd={(id) => {
               const activity = ACTIVITIES.find((a) => a.id === id);
-              if (activity && energyRemaining >= activity.epCost) {
-                setWeekSelections([...weekSelections, id]);
-                setEnergyRemaining(energyRemaining - activity.epCost);
-              }
+              if (!activity || energyRemaining < activity.epCost) return;
+              const minY = (activity as { minYear?: number }).minYear;
+              if (typeof minY === "number" && minY > currentYear) return;
+              setWeekSelections([...weekSelections, id]);
+              setEnergyRemaining(energyRemaining - activity.epCost);
             }}
             onRemove={(id) => {
               const idx = weekSelections.lastIndexOf(id);
@@ -1413,6 +1445,120 @@ export default function Home() {
       >
         Year {currentYear} · Week {currentWeek}
       </div>
+
+      {fakeIdModalItem ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="fake-id-modal-title"
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 200,
+            backgroundColor: "rgba(0, 0, 0, 0.82)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+            boxSizing: "border-box",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 520,
+              backgroundColor: "#141210",
+              border: "1px solid rgba(215, 63, 9, 0.45)",
+              borderRadius: 14,
+              padding: "24px 22px 22px",
+              boxShadow: "0 24px 48px rgba(0, 0, 0, 0.55)",
+              color: "#fafaf9",
+              fontFamily:
+                'system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+            }}
+          >
+            <h2
+              id="fake-id-modal-title"
+              className="osu-display-font"
+              style={{
+                margin: "0 0 12px",
+                fontSize: "clamp(0.55rem, 2.2vw, 0.75rem)",
+                fontWeight: 800,
+                lineHeight: 1.25,
+                color: "#fff",
+              }}
+            >
+              Confirm underground purchase
+            </h2>
+            <p
+              style={{
+                margin: "0 0 10px",
+                fontSize: "clamp(0.38rem, 1.5vw, 0.52rem)",
+                lineHeight: 1.5,
+                color: "rgba(255, 255, 255, 0.88)",
+              }}
+            >
+              <strong>{fakeIdModalItem.name}</strong> — ${fakeIdModalItem.cost}
+            </p>
+            <p
+              style={{
+                margin: "0 0 22px",
+                fontSize: "clamp(0.36rem, 1.45vw, 0.5rem)",
+                lineHeight: 1.55,
+                color: "rgba(254, 226, 226, 0.92)",
+              }}
+            >
+              {fakeIdModalItem.fakeidRisk === "high"
+                ? "HIGH RISK: about 20% chance EACH WEEK of a fake-ID bust with Corvallis PD — big hits to social, happiness, and GPA, plus $200 in lawyer fees."
+                : "LOWER RISK: about 5% chance EACH WEEK of the same kind of arrest — milder stat penalties and $150 in fees."}{" "}
+              Buying still adds the listed social boost once.
+            </p>
+            <div
+              style={{
+                display: "flex",
+                gap: 12,
+                flexWrap: "wrap",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                type="button"
+                className="osu-display-font"
+                onClick={cancelFakeIdPurchase}
+                style={{
+                  padding: "12px 18px",
+                  borderRadius: 10,
+                  border: "1px solid rgba(255, 255, 255, 0.2)",
+                  background: "rgba(255, 255, 255, 0.06)",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontSize: "clamp(0.38rem, 1.5vw, 0.5rem)",
+                  fontWeight: 600,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="osu-display-font"
+                onClick={confirmFakeIdPurchase}
+                style={{
+                  padding: "12px 18px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#B91C1C",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontSize: "clamp(0.38rem, 1.5vw, 0.5rem)",
+                  fontWeight: 700,
+                }}
+              >
+                Confirm purchase
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

@@ -14,13 +14,22 @@ export type Activity = {
     happiness: number;
     social: number;
   };
+  /** If set, activity is locked until this academic year (inclusive). */
+  minYear?: number;
 };
 
 const ORANGE = "#D73F09";
 const RED = "#EF4444";
 const BG = "#1A1A1A";
 
-const TIKI_TUESDAY_ID = "downward-dog-tiki-tuesday";
+function minYearUnlockLabel(minYear: number): string {
+  const labels: Record<number, string> = {
+    2: "🔒 Unlocks Sophomore Year",
+    3: "🔒 Unlocks Junior Year",
+    4: "🔒 Unlocks Senior Year",
+  };
+  return labels[minYear] ?? `🔒 Unlocks Year ${minYear}`;
+}
 
 function countSelections(weekSelections: string[], id: string): number {
   let n = 0;
@@ -177,10 +186,11 @@ export default function ActivityPicker({
     const count = countSelections(weekSelections, activity.id);
     const selected = count > 0;
     const cannotAdd = activity.epCost > energyRemaining;
-    const isTikiLocked =
-      activity.id === TIKI_TUESDAY_ID &&
-      (currentYear === 1 || currentYear === 2);
-    const locked = isTikiLocked;
+    const minY = activity.minYear;
+    const locked =
+      typeof minY === "number" &&
+      Number.isFinite(minY) &&
+      minY > currentYear;
 
     const titleRow: CSSProperties = {
       display: "flex",
@@ -232,31 +242,34 @@ export default function ActivityPicker({
 
     const cardOuterStyle: CSSProperties = locked ? { opacity: 0.55 } : {};
 
+    const lockLabelStyle: CSSProperties = {
+      fontSize: "0.85rem",
+      fontWeight: 700,
+      color: "rgba(215, 63, 9, 0.95)",
+      marginBottom: "0.5rem",
+      lineHeight: 1.35,
+    };
+
     return (
       <div
         key={activity.id}
         className={cardClass}
         style={cardOuterStyle}
-        title={
-          locked ? "Must be 21+ (Junior or Senior)" : undefined
-        }
+        title={locked ? minYearUnlockLabel(minY ?? 0) : undefined}
       >
         <div style={titleRow}>
-          <div style={nameStyle}>
-            {locked ? (
-              <span aria-hidden style={{ marginRight: 8 }}>
-                🔒
-              </span>
-            ) : null}
-            {activity.name}
-          </div>
+          <div style={nameStyle}>{activity.name}</div>
           {selected && !locked ? (
             <span style={badgeStyle} aria-label={`${count} selected`}>
               x{count}
             </span>
           ) : null}
         </div>
-        <div style={metaStyle}>{activity.location}</div>
+        {locked ? (
+          <div style={lockLabelStyle}>{minYearUnlockLabel(minY ?? 0)}</div>
+        ) : (
+          <div style={metaStyle}>{activity.location}</div>
+        )}
         <div style={epLineStyle}>{activity.epCost} EP each</div>
         <div className="osu-activity-actions">
           {count > 0 && !locked ? (

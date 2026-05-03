@@ -56,6 +56,7 @@ export const ACTIVITIES = [
     epCost: 2,
     sceneImage: "tiki.png",
     effects: { gpa: -1, health: 3, happiness: 8, social: 8 },
+    minYear: 3,
   },
   {
     id: "rivas-taco-shop",
