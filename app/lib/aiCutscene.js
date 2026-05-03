@@ -152,6 +152,38 @@ async function callAnthropicMessages(userPrompt, maxTokens) {
  * @param {unknown[]} chosenActivities
  * @param {{ gpa?: number; health?: number; happiness?: number; social?: number }} currentStats
  * @param {{ gpa?: number; health?: number; happiness?: number; social?: number }} week1BaselineStats
+ * @returns {string}
+ */
+export function buildCutsceneUserPrompt(
+  playerName,
+  year,
+  week,
+  chosenActivities,
+  currentStats,
+  week1BaselineStats,
+) {
+  const standing = yearToClassStanding(year);
+  const activityText = formatActivityClause(chosenActivities);
+  const gpaNow = gpaToFourPoint(currentStats?.gpa);
+  const hNow = Number(currentStats?.health) || 0;
+  const hapNow = Number(currentStats?.happiness) || 0;
+  const sNow = Number(currentStats?.social) || 0;
+
+  const gpaBase = gpaToFourPoint(week1BaselineStats?.gpa);
+  const hBase = Number(week1BaselineStats?.health) || 0;
+  const hapBase = Number(week1BaselineStats?.happiness) || 0;
+  const sBase = Number(week1BaselineStats?.social) || 0;
+
+  return `The player's name is ${playerName}. They are a ${standing} at Oregon State University in Week ${week} of their college journey. This week they: ${activityText}. Their current stats: GPA ${gpaNow}, Health ${hNow}/100, Happiness ${hapNow}/100, Social ${sNow}/100. When they arrived at OSU in Week 1, their baseline stats were: GPA ${gpaBase}, Health ${hBase}/100, Happiness ${hapBase}/100, Social ${sBase}/100. Write a short vivid 3-4 sentence story about their week. Reference real OSU and Corvallis locations by name. Reflect how they have grown or changed since Week 1. Match tone to their current stats — upbeat if stats are high, gritty if declining. No emojis.`;
+}
+
+/**
+ * @param {string} playerName
+ * @param {number} year
+ * @param {number} week
+ * @param {unknown[]} chosenActivities
+ * @param {{ gpa?: number; health?: number; happiness?: number; social?: number }} currentStats
+ * @param {{ gpa?: number; health?: number; happiness?: number; social?: number }} week1BaselineStats
  * @returns {Promise<string>}
  */
 export async function generateCutscene(
@@ -163,21 +195,14 @@ export async function generateCutscene(
   week1BaselineStats,
 ) {
   try {
-    const standing = yearToClassStanding(year);
-    const activityText = formatActivityClause(chosenActivities);
-    const gpaNow = gpaToFourPoint(currentStats?.gpa);
-    const hNow = Number(currentStats?.health) || 0;
-    const hapNow = Number(currentStats?.happiness) || 0;
-    const sNow = Number(currentStats?.social) || 0;
-
-    const gpaBase = gpaToFourPoint(week1BaselineStats?.gpa);
-    const hBase = Number(week1BaselineStats?.health) || 0;
-    const hapBase = Number(week1BaselineStats?.happiness) || 0;
-    const sBase = Number(week1BaselineStats?.social) || 0;
-
-    const userPrompt =
-      `The player's name is ${playerName}. They are a ${standing} at Oregon State University in Week ${week} of their college journey. This week they: ${activityText}. Their current stats: GPA ${gpaNow}, Health ${hNow}/100, Happiness ${hapNow}/100, Social ${sNow}/100. When they arrived at OSU in Week 1, their baseline stats were: GPA ${gpaBase}, Health ${hBase}/100, Happiness ${hapBase}/100, Social ${sBase}/100. Write a short vivid 3-4 sentence story about their week. Reference real OSU and Corvallis locations by name. Reflect how they have grown or changed since Week 1. Match tone to their current stats — upbeat if stats are high, gritty if declining. No emojis.`;
-
+    const userPrompt = buildCutsceneUserPrompt(
+      playerName,
+      year,
+      week,
+      chosenActivities,
+      currentStats,
+      week1BaselineStats,
+    );
     return await callAnthropicMessages(userPrompt, MAX_TOKENS_CUTSCENE);
   } catch {
     return FALLBACK_CUTSCENE;

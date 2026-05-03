@@ -20,24 +20,7 @@ const ORANGE = "#D73F09";
 const RED = "#EF4444";
 const BG = "#1A1A1A";
 
-const EFFECT_LABELS: Record<keyof Activity["effects"], string> = {
-  gpa: "GPA",
-  health: "Health",
-  happiness: "Happiness",
-  social: "Social",
-};
-
-function formatEffectsSummary(effects: Activity["effects"]): string {
-  const keys = Object.keys(EFFECT_LABELS) as (keyof Activity["effects"])[];
-  const parts: string[] = [];
-  for (const key of keys) {
-    const v = effects[key];
-    if (v === 0) continue;
-    const sign = v > 0 ? "+" : "";
-    parts.push(`${sign}${v} ${EFFECT_LABELS[key]}`);
-  }
-  return parts.length > 0 ? parts.join(", ") : "No stat change";
-}
+const TIKI_TUESDAY_ID = "downward-dog-tiki-tuesday";
 
 function countSelections(weekSelections: string[], id: string): number {
   let n = 0;
@@ -56,7 +39,9 @@ function epDisplayColor(energyRemaining: number): string {
 export type ActivityPickerProps = {
   activities: Activity[];
   energyRemaining: number;
+  /** Max EP per week (fixed at 5 in OSU Simulator v2). */
   totalEnergy: number;
+  currentYear: number;
   weekSelections: string[];
   onAdd: (activityId: string) => void;
   onRemove: (activityId: string) => void;
@@ -69,6 +54,7 @@ export default function ActivityPicker({
   activities,
   energyRemaining,
   totalEnergy,
+  currentYear,
   weekSelections,
   onAdd,
   onRemove,
@@ -191,6 +177,10 @@ export default function ActivityPicker({
     const count = countSelections(weekSelections, activity.id);
     const selected = count > 0;
     const cannotAdd = activity.epCost > energyRemaining;
+    const isTikiLocked =
+      activity.id === TIKI_TUESDAY_ID &&
+      (currentYear === 1 || currentYear === 2);
+    const locked = isTikiLocked;
 
     const titleRow: CSSProperties = {
       display: "flex",
@@ -229,29 +219,38 @@ export default function ActivityPicker({
       fontSize: "0.85rem",
       color: ORANGE,
       fontWeight: 700,
-      marginBottom: "0.45rem",
-    };
-
-    const fxStyle: CSSProperties = {
-      fontSize: "0.8rem",
-      color: "rgba(255, 255, 255, 0.88)",
-      lineHeight: 1.45,
       marginBottom: "0.65rem",
-      flex: 1,
     };
 
     const cardClass = [
       "osu-activity-card",
       selected ? "osu-activity-card--selected" : "",
+      locked ? "osu-activity-card--locked" : "",
     ]
       .filter(Boolean)
       .join(" ");
 
+    const cardOuterStyle: CSSProperties = locked ? { opacity: 0.55 } : {};
+
     return (
-      <div key={activity.id} className={cardClass}>
+      <div
+        key={activity.id}
+        className={cardClass}
+        style={cardOuterStyle}
+        title={
+          locked ? "Must be 21+ (Junior or Senior)" : undefined
+        }
+      >
         <div style={titleRow}>
-          <div style={nameStyle}>{activity.name}</div>
-          {selected ? (
+          <div style={nameStyle}>
+            {locked ? (
+              <span aria-hidden style={{ marginRight: 8 }}>
+                🔒
+              </span>
+            ) : null}
+            {activity.name}
+          </div>
+          {selected && !locked ? (
             <span style={badgeStyle} aria-label={`${count} selected`}>
               x{count}
             </span>
@@ -259,9 +258,8 @@ export default function ActivityPicker({
         </div>
         <div style={metaStyle}>{activity.location}</div>
         <div style={epLineStyle}>{activity.epCost} EP each</div>
-        <div style={fxStyle}>{formatEffectsSummary(activity.effects)}</div>
         <div className="osu-activity-actions">
-          {count > 0 ? (
+          {count > 0 && !locked ? (
             <button
               type="button"
               className="osu-activity-btn osu-activity-btn--minus"
@@ -275,9 +273,9 @@ export default function ActivityPicker({
             type="button"
             className="osu-activity-btn osu-activity-btn--plus"
             aria-label={`Add one ${activity.name}`}
-            disabled={cannotAdd}
+            disabled={cannotAdd || locked}
             onClick={() => {
-              if (!cannotAdd) onAdd(activity.id);
+              if (!cannotAdd && !locked) onAdd(activity.id);
             }}
           >
             +
@@ -319,7 +317,7 @@ export default function ActivityPicker({
         <div style={epLabelStyle}>Energy remaining</div>
         <div style={epValueStyle}>{energyRemaining} EP</div>
         <div style={epSubStyle}>
-          {spentEp} spent this week · {totalEnergy} total
+          {spentEp} spent this week · {totalEnergy} max per week
         </div>
       </header>
 

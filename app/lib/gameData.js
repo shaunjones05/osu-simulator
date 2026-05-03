@@ -99,10 +99,10 @@ export const INITIAL_STATS = {
 };
 
 export const ENERGY_BY_YEAR = {
-  year1: 13,
-  year2: 12,
-  year3: 11,
-  year4: 14,
+  year1: 5,
+  year2: 5,
+  year3: 5,
+  year4: 5,
 };
 
 /** @typedef {{ gpa?: number; health?: number; happiness?: number; social?: number }} StatDelta */

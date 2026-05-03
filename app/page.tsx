@@ -15,9 +15,13 @@ import {
   getEnding,
 } from "./lib/gameLogic.js";
 import { generateCutscene, generateCustomEnding } from "./lib/aiCutscene.js";
+import { getScenarioForWeek } from "./lib/scenarios.js";
 import StartScreen from "./components/StartScreen";
 import StatBars from "./components/StatBars";
 import ActivityPicker from "./components/ActivityPicker";
+import ScenarioPopup, {
+  type ScenarioForPopup,
+} from "./components/ScenarioPopup";
 import CutsceneScreen, {
   type CutsceneExtraEvent,
 } from "./components/CutsceneScreen";
@@ -27,9 +31,36 @@ import GraduationScreen, {
   type GraduationEnding,
 } from "./components/GraduationScreen";
 
-type GamePhase = "picking" | "cutscene" | "gameover" | "graduation";
+type GamePhase =
+  | "picking"
+  | "cutscene"
+  | "scenario"
+  | "gameover"
+  | "graduation";
 
 const STAT_KEYS = ["gpa", "health", "happiness", "social"] as const;
+
+/** Fixed max EP per week (matches ENERGY_BY_YEAR in v2). */
+const WEEKLY_EP_MAX = 5;
+
+function scenarioUsedId(scenario: { id: string }, year: number): string {
+  if (scenario.id === "halloween_party") return `halloween_party:${year}`;
+  return scenario.id;
+}
+
+function deltaFromConsequence(
+  con: Record<string, unknown>,
+): Record<string, number | undefined> {
+  const d: Record<string, number | undefined> = {};
+  for (const k of STAT_KEYS) {
+    const v = con[k];
+    if (v === undefined || v === null) continue;
+    const n = Number(v);
+    if (!Number.isFinite(n)) continue;
+    d[k] = n;
+  }
+  return d;
+}
 
 function clampStat(value: number): number {
   const n = Number(value);
@@ -118,6 +149,12 @@ export default function Home() {
   const [finalEnding, setFinalEnding] = useState<GraduationEnding | null>(null);
   const [aiEndingText, setAiEndingText] = useState("");
   const [activitiesPanelOpen, setActivitiesPanelOpen] = useState(false);
+  const [usedScenarioIds, setUsedScenarioIds] = useState<string[]>([]);
+  const [pendingApiScenario, setPendingApiScenario] =
+    useState<ScenarioForPopup | null>(null);
+  const [activeScenario, setActiveScenario] = useState<ScenarioForPopup | null>(
+    null,
+  );
 
   if (!gameStarted) {
     return (
@@ -142,6 +179,9 @@ export default function Home() {
           setFinalEnding(null);
           setAiEndingText("");
           setActivitiesPanelOpen(false);
+          setUsedScenarioIds([]);
+          setPendingApiScenario(null);
+          setActiveScenario(null);
           setGameStarted(true);
         }}
       />
@@ -183,6 +223,7 @@ export default function Home() {
     week: number,
     baseline: WeekStats,
     name: string,
+    scenarioIdsForApi: string[],
   ) {
     let s: WeekStats = normalizeWeekStats(
       applyWeek(statsBefore, selections, ACTIVITIES),
@@ -208,20 +249,50 @@ export default function Home() {
     const finalStats = normalizeWeekStats(s);
     const sceneFile = pickSceneImageFromSelections(selections);
 
-    const story = await generateCutscene(
-      name,
-      year,
-      week,
-      selections,
-      finalStats,
-      baseline,
-    );
+    let story = "";
+    let apiScenario: ScenarioForPopup | null = null;
+    try {
+      const res = await fetch("/api/cutscene", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          playerName: name,
+          year,
+          week,
+          chosenActivities: selections,
+          finalStats,
+          baseline,
+          usedScenarioIds: scenarioIdsForApi,
+        }),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as {
+          storyText?: string;
+          apiScenario?: ScenarioForPopup | null;
+        };
+        story = data.storyText ?? "";
+        apiScenario = data.apiScenario ?? null;
+      } else {
+        throw new Error("cutscene api");
+      }
+    } catch {
+      story = await generateCutscene(
+        name,
+        year,
+        week,
+        selections,
+        finalStats,
+        baseline,
+      );
+      apiScenario = null;
+    }
 
     return {
       finalStats,
       story,
       sceneFile,
       extra,
+      apiScenario,
     };
   }
 
@@ -235,18 +306,22 @@ export default function Home() {
 
     setIsGeneratingStory(true);
     setActivitiesPanelOpen(false);
+    setPendingApiScenario(null);
     setGamePhase("cutscene");
 
     void (async () => {
-      const { finalStats, story, sceneFile, extra } = await resolveWeekEnd(
-        statsBefore,
-        selections,
-        year,
-        week,
-        baseline,
-        name,
-      );
+      const { finalStats, story, sceneFile, extra, apiScenario } =
+        await resolveWeekEnd(
+          statsBefore,
+          selections,
+          year,
+          week,
+          baseline,
+          name,
+          usedScenarioIds,
+        );
 
+      setPendingApiScenario(apiScenario);
       setStoryText(story);
       setSceneImageFilename(sceneFile);
       setCutsceneExtraEvent(extra);
@@ -263,15 +338,13 @@ export default function Home() {
     })();
   }
 
-  async function handleCutsceneContinue() {
+  async function advanceAfterWeekResolved(latestStats: WeekStats) {
     if (currentWeek < 8) {
       setCurrentWeek((w) => w + 1);
       setWeekSelections([]);
       setActivitiesPanelOpen(false);
       setGamePhase("picking");
-      setEnergyRemaining(
-        ENERGY_BY_YEAR[`year${currentYear}` as keyof typeof ENERGY_BY_YEAR],
-      );
+      setEnergyRemaining(WEEKLY_EP_MAX);
       return;
     }
 
@@ -282,13 +355,11 @@ export default function Home() {
       setWeekSelections([]);
       setActivitiesPanelOpen(false);
       setGamePhase("picking");
-      setEnergyRemaining(
-        ENERGY_BY_YEAR[`year${nextYear}` as keyof typeof ENERGY_BY_YEAR],
-      );
+      setEnergyRemaining(WEEKLY_EP_MAX);
       return;
     }
 
-    const ending = getEnding(stats);
+    const ending = getEnding(latestStats);
     if (ending !== null) {
       setFinalEnding(ending);
       setAiEndingText("");
@@ -297,9 +368,63 @@ export default function Home() {
     }
 
     setFinalEnding(null);
-    const text = await generateCustomEnding(playerName, stats);
+    const text = await generateCustomEnding(playerName, latestStats);
     setAiEndingText(text);
     setGamePhase("graduation");
+  }
+
+  async function handleCutsceneContinue() {
+    const guaranteed = getScenarioForWeek(
+      currentYear,
+      currentWeek,
+      usedScenarioIds,
+    );
+    if (guaranteed) {
+      setActiveScenario(guaranteed as ScenarioForPopup);
+      setGamePhase("scenario");
+      return;
+    }
+    if (pendingApiScenario) {
+      setActiveScenario(pendingApiScenario);
+      setPendingApiScenario(null);
+      setGamePhase("scenario");
+      return;
+    }
+    await advanceAfterWeekResolved(stats);
+  }
+
+  function handleScenarioComplete(choiceIndex: number) {
+    if (!activeScenario) return;
+    const raw = activeScenario.choices[choiceIndex]?.consequence;
+    if (!raw || typeof raw !== "object") return;
+    const con = raw as Record<string, unknown>;
+    const delta = deltaFromConsequence(con);
+    const nextStats = normalizeWeekStats(applyStatDelta(stats, delta));
+    setStats(nextStats);
+    setUsedScenarioIds((prev) => [
+      ...prev,
+      scenarioUsedId(activeScenario, currentYear),
+    ]);
+    setActiveScenario(null);
+    const over = checkGameOver(nextStats);
+    if (over.isOver) {
+      setGameOverReason(over.reason);
+      setGamePhase("gameover");
+      return;
+    }
+    void advanceAfterWeekResolved(nextStats);
+  }
+
+  if (gamePhase === "scenario" && activeScenario) {
+    return (
+      <ScenarioPopup
+        key={activeScenario.id}
+        scenario={activeScenario}
+        onComplete={(choiceIndex) => {
+          handleScenarioComplete(choiceIndex);
+        }}
+      />
+    );
   }
 
   if (gamePhase === "cutscene") {
@@ -491,11 +616,8 @@ export default function Home() {
             variant="panel"
             activities={ACTIVITIES}
             energyRemaining={energyRemaining}
-            totalEnergy={
-              ENERGY_BY_YEAR[
-                `year${currentYear}` as keyof typeof ENERGY_BY_YEAR
-              ]
-            }
+            totalEnergy={WEEKLY_EP_MAX}
+            currentYear={currentYear}
             weekSelections={weekSelections}
             onAdd={(id) => {
               const activity = ACTIVITIES.find((a) => a.id === id);
