@@ -78,21 +78,26 @@ export const ACTIVITIES = [
     sceneImage: "party.png",
     effects: { gpa: 0, health: 0, happiness: 4, social: 2, attractiveness: 0 },
   },
-  {
-    id: "find-soulmate",
-    name: "Find My Soulmate",
-    location: "OSU Campus",
-    epCost: 1,
-    sceneImage: "dorm.png",
-    effects: {
-      gpa: 0,
-      health: 0,
-      happiness: 0,
-      social: 0,
-      attractiveness: 0,
-    },
-  },
 ];
+
+/** 1 EP campus dating search — toggled via Dating HUD button, not the activity grid. */
+export const DATING_SEARCH_ACTIVITY = {
+  id: "find-soulmate",
+  name: "Find My Soulmate",
+  location: "OSU Campus",
+  epCost: 1,
+  sceneImage: "dorm.png",
+  effects: {
+    gpa: 0,
+    health: 0,
+    happiness: 0,
+    social: 0,
+    attractiveness: 0,
+  },
+};
+
+/** Activities plus dating row (used for week simulation / AI / scene pick). */
+export const ACTIVITIES_FOR_SIM = [...ACTIVITIES, DATING_SEARCH_ACTIVITY];
 
 /** Dating pool for "Find My Soulmate" — one random match per playthrough until breakup. */
 export const SOULMATES = [

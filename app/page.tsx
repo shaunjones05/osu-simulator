@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   ACTIVITIES,
+  ACTIVITIES_FOR_SIM,
   WEEKS_PER_YEAR,
   INITIAL_STATS,
   ENERGY_BY_YEAR,
@@ -26,6 +27,7 @@ import {
   assetRowAllowsQuickSell,
   rollPokemonPackPull,
   SOULMATES,
+  DATING_SEARCH_ACTIVITY,
 } from "./lib/gameData.js";
 import {
   applyWeek,
@@ -190,12 +192,12 @@ const ACTIVITY_SHORT_LABEL: Record<string, string> = {
   "club-mu": "Club",
   "study-group-kelley": "Study group",
   gambling: "Gamble",
-  "find-soulmate": "Soulmate",
+  "find-soulmate": "Dating",
 };
 
 function activityShortLabel(activityId: string): string {
   if (ACTIVITY_SHORT_LABEL[activityId]) return ACTIVITY_SHORT_LABEL[activityId];
-  const a = ACTIVITIES.find((ac) => ac.id === activityId);
+  const a = ACTIVITIES_FOR_SIM.find((ac) => ac.id === activityId);
   if (!a) return activityId;
   return a.name.split(/\s+/)[0] ?? activityId;
 }
@@ -259,7 +261,7 @@ function historyActivitiesSummaryLine(
   chosen: { name: string; location: string }[],
 ): string {
   const ids = chosen.map((c) => {
-    const a = ACTIVITIES.find(
+    const a = ACTIVITIES_FOR_SIM.find(
       (ac) => ac.name === c.name && ac.location === c.location,
     );
     return a?.id ?? c.name;
@@ -345,7 +347,7 @@ function pickSceneImageFromSelections(weekSelections: string[]): string {
   for (const id of order) {
     const totalEp = weekSelections.reduce((sum, pick) => {
       if (pick !== id) return sum;
-      const a = ACTIVITIES.find((ac) => ac.id === pick);
+      const a = ACTIVITIES_FOR_SIM.find((ac) => ac.id === pick);
       return sum + (a?.epCost ?? 0);
     }, 0);
     if (totalEp > bestEp) {
@@ -353,7 +355,7 @@ function pickSceneImageFromSelections(weekSelections: string[]): string {
       bestId = id;
     }
   }
-  const activity = ACTIVITIES.find((ac) => ac.id === bestId);
+  const activity = ACTIVITIES_FOR_SIM.find((ac) => ac.id === bestId);
   return activity?.sceneImage ?? "";
 }
 
@@ -405,6 +407,12 @@ export default function Home() {
     ENERGY_BY_YEAR.year1,
   );
   const [weekSelections, setWeekSelections] = useState<string[]>([]);
+  /** 1 EP dating search merged into week resolve; not stored in `weekSelections`. */
+  const [datingSearchThisWeek, setDatingSearchThisWeek] = useState(false);
+  /** Full activity id list for the active cutscene summary (includes dating when used). */
+  const [cutsceneWeekActivityIds, setCutsceneWeekActivityIds] = useState<
+    string[]
+  >([]);
   const [gamePhase, setGamePhase] = useState<GamePhase>("picking");
   const [isGeneratingStory, setIsGeneratingStory] = useState(false);
   const [storyText, setStoryText] = useState("");
@@ -520,6 +528,8 @@ export default function Home() {
           setWeek1BaselineStats(baseline);
           setEnergyRemaining(ENERGY_BY_YEAR.year1);
           setWeekSelections([]);
+          setDatingSearchThisWeek(false);
+          setCutsceneWeekActivityIds([]);
           setGamePhase("picking");
           setIsGeneratingStory(false);
           setStoryText("");
@@ -652,7 +662,7 @@ export default function Home() {
     },
   ) {
     let s: WeekStats = normalizeWeekStats(
-      applyWeek(statsBefore, selections, ACTIVITIES),
+      applyWeek(statsBefore, selections, ACTIVITIES_FOR_SIM),
     );
     s = normalizeWeekStats(
       applyPassiveEffects(s, {
@@ -925,13 +935,19 @@ export default function Home() {
   }
 
   function handleActivityConfirm() {
-    const spentEpConfirm = weekSelections.reduce((sum, id) => {
-      const a = ACTIVITIES.find((ac) => ac.id === id);
-      return sum + (a?.epCost ?? 0);
-    }, 0);
+    const datingEp = datingSearchThisWeek ? DATING_SEARCH_ACTIVITY.epCost : 0;
+    const spentEpConfirm =
+      weekSelections.reduce((sum, id) => {
+        const a = ACTIVITIES.find((ac) => ac.id === id);
+        return sum + (a?.epCost ?? 0);
+      }, 0) + datingEp;
     if (spentEpConfirm < 1) return;
 
-    const selections = [...weekSelections];
+    const selections =
+      datingSearchThisWeek &&
+      !weekSelections.includes("find-soulmate")
+        ? [...weekSelections, "find-soulmate"]
+        : [...weekSelections];
 
     if (!firstPartyDone && selections.includes("frat-party-26th")) {
       setActiveScenario(FIRST_PARTY_COKE_SCENARIO);
@@ -1046,7 +1062,7 @@ export default function Home() {
       setGamblingBetInput("");
 
       const activitiesChosen = selections.map((id) => {
-        const a = ACTIVITIES.find((ac) => ac.id === id);
+        const a = ACTIVITIES_FOR_SIM.find((ac) => ac.id === id);
         return {
           name: a?.name ?? id,
           location: a?.location ?? "",
@@ -1072,6 +1088,8 @@ export default function Home() {
       setStoryText(story);
       setSceneImageFilename(sceneFile);
       setCutsceneExtraEvent(extra);
+      setCutsceneWeekActivityIds(selections);
+      setDatingSearchThisWeek(false);
       setCutsceneStatsBefore(statsBefore);
       setCutsceneStatsAfter(finalStats);
       setStats(finalStats);
@@ -1120,6 +1138,8 @@ export default function Home() {
     if (currentWeek < WEEKS_PER_YEAR) {
       setCurrentWeek((w) => w + 1);
       setWeekSelections([]);
+      setDatingSearchThisWeek(false);
+      setCutsceneWeekActivityIds([]);
       setActivitiesPanelOpen(false);
       setCareerPanelOpen(false);
       setShopPanelOpen(false);
@@ -1137,6 +1157,8 @@ export default function Home() {
       setCurrentYear(nextYear);
       setCurrentWeek(1);
       setWeekSelections([]);
+      setDatingSearchThisWeek(false);
+      setCutsceneWeekActivityIds([]);
       setActivitiesPanelOpen(false);
       setCareerPanelOpen(false);
       setShopPanelOpen(false);
@@ -1339,6 +1361,18 @@ export default function Home() {
     setCurrentSoulmate(null);
     setIsDateAvailable(true);
     showHudToast(`💔 You and ${nm} have broken up.`);
+  }
+
+  function toggleDatingSearchThisWeek() {
+    if (currentSoulmate) return;
+    if (datingSearchThisWeek) {
+      setDatingSearchThisWeek(false);
+      setEnergyRemaining((e) => e + DATING_SEARCH_ACTIVITY.epCost);
+    } else {
+      if (energyRemaining < DATING_SEARCH_ACTIVITY.epCost) return;
+      setDatingSearchThisWeek(true);
+      setEnergyRemaining((e) => e - DATING_SEARCH_ACTIVITY.epCost);
+    }
   }
 
   function showShopPurchaseToast(item: (typeof SHOP)[number]) {
@@ -1563,7 +1597,11 @@ export default function Home() {
         statsBefore={before}
         statsAfter={after}
         extraEvent={cutsceneExtraEvent}
-        weekSelections={weekSelections}
+        weekSelections={
+          cutsceneWeekActivityIds.length > 0
+            ? cutsceneWeekActivityIds
+            : weekSelections
+        }
         onContinue={() => {
           void handleCutsceneContinue();
         }}
@@ -1940,6 +1978,7 @@ export default function Home() {
             totalEnergy={WEEKLY_EP_MAX}
             currentYear={currentYear}
             weekSelections={weekSelections}
+            extraEpSpent={datingSearchThisWeek ? DATING_SEARCH_ACTIVITY.epCost : 0}
             onAdd={(id) => {
               const activity = ACTIVITIES.find((a) => a.id === id);
               if (!activity || energyRemaining < activity.epCost) return;
@@ -2901,6 +2940,61 @@ export default function Home() {
       </aside>
 
       {gamePhase === "picking" && !isGeneratingStory ? (
+        <>
+        <button
+          type="button"
+          className="osu-display-font osu-display-font--micro"
+          onClick={toggleDatingSearchThisWeek}
+          disabled={
+            currentSoulmate !== null ||
+            (!datingSearchThisWeek &&
+              energyRemaining < DATING_SEARCH_ACTIVITY.epCost)
+          }
+          aria-pressed={datingSearchThisWeek}
+          aria-label={
+            datingSearchThisWeek
+              ? "Remove dating search this week (refund 1 EP)"
+              : "Spend 1 EP on dating search this week"
+          }
+          style={{
+            position: "fixed",
+            left: 16,
+            bottom: 20,
+            zIndex: 10050,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 4,
+            padding: "10px 14px",
+            borderRadius: 14,
+            border: datingSearchThisWeek
+              ? "2px solid rgba(233, 30, 140, 0.65)"
+              : "2px solid rgba(255,255,255,0.22)",
+            background: datingSearchThisWeek
+              ? "rgba(233, 30, 140, 0.22)"
+              : "rgba(26, 26, 26, 0.92)",
+            color: "#FFFFFF",
+            cursor:
+              currentSoulmate !== null ||
+              (!datingSearchThisWeek &&
+                energyRemaining < DATING_SEARCH_ACTIVITY.epCost)
+                ? "not-allowed"
+                : "pointer",
+            opacity:
+              currentSoulmate !== null ||
+              (!datingSearchThisWeek &&
+                energyRemaining < DATING_SEARCH_ACTIVITY.epCost)
+                ? 0.45
+                : 1,
+            boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
+            minWidth: 72,
+          }}
+        >
+          <span style={{ fontSize: "1.35rem", lineHeight: 1 }} aria-hidden>
+            ❤️
+          </span>
+          <span style={{ fontSize: PANEL_FS, fontWeight: 700 }}>Dating</span>
+        </button>
         <div
           style={{
             position: "fixed",
@@ -2950,6 +3044,7 @@ export default function Home() {
             Next Week
           </span>
         </div>
+        </>
       ) : null}
 
       <div

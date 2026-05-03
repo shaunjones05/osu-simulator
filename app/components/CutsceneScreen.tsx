@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import { ACTIVITIES } from "../lib/gameData.js";
+import { ACTIVITIES_FOR_SIM } from "../lib/gameData.js";
 import type { WeekStats } from "./WeekSummary";
 
 const ORANGE = "#D73F09";
@@ -53,7 +53,7 @@ export function buildWeekActivitySummary(selectionIds: string[]): string {
 
   const clauses = order.map((id) => {
     const n = counts.get(id) ?? 1;
-    const a = ACTIVITIES.find((x) => x.id === id);
+    const a = ACTIVITIES_FOR_SIM.find((x) => x.id === id);
     if (!a) {
       return `did something${repeatSuffix(n)}`;
     }

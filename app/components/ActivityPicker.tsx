@@ -63,6 +63,8 @@ export type ActivityPickerProps = {
   variant?: "page" | "panel";
   /** When true, do not render the End Week footer (e.g. global FAB handles confirm). */
   hideFooter?: boolean;
+  /** EP spent outside the grid (e.g. Dating HUD toggle). */
+  extraEpSpent?: number;
 };
 
 export default function ActivityPicker({
@@ -76,12 +78,14 @@ export default function ActivityPicker({
   onConfirm,
   variant = "page",
   hideFooter = false,
+  extraEpSpent = 0,
 }: ActivityPickerProps) {
   const isPanel = variant === "panel";
-  const spentEp = weekSelections.reduce((sum, id) => {
-    const a = activities.find((act) => act.id === id);
-    return sum + (a?.epCost ?? 0);
-  }, 0);
+  const spentEp =
+    weekSelections.reduce((sum, id) => {
+      const a = activities.find((act) => act.id === id);
+      return sum + (a?.epCost ?? 0);
+    }, 0) + extraEpSpent;
   const canConfirm = spentEp >= 1;
   const epColor = epDisplayColor(energyRemaining);
 

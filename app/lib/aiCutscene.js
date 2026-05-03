@@ -1,4 +1,4 @@
-import { ACTIVITIES } from "./gameData.js";
+import { ACTIVITIES_FOR_SIM } from "./gameData.js";
 import { extractAssistantText } from "./anthropicResponseText.js";
 
 const ANTHROPIC_MESSAGES_URL = "/api/claude";
@@ -42,7 +42,7 @@ function resolveActivity(entry) {
         ? String(entry.id)
         : "";
   if (!id) return { name: "Unknown activity", location: "" };
-  const found = ACTIVITIES.find((a) => a.id === id);
+  const found = ACTIVITIES_FOR_SIM.find((a) => a.id === id);
   return found ?? { name: id, location: "" };
 }
 
