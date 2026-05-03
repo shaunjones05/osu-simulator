@@ -100,13 +100,19 @@ export async function POST(req: Request) {
     );
 
     const [storyText, apiScenario] = await Promise.all([
-      anthropicMessagesComplete(cutscenePrompt, 300).catch(() => FALLBACK_STORY),
+      anthropicMessagesComplete(cutscenePrompt, 300).catch((e) => {
+        console.error("CUTSCENE ERROR:", e?.message ?? e);
+        return FALLBACK_STORY;
+      }),
       anthropicMessagesComplete(scenarioPrompt, 900)
         .then((rawJson) => {
           const parsed = extractJsonObject(rawJson);
           return normalizeApiScenario(parsed, year, week);
         })
-        .catch(() => null),
+        .catch((e) => {
+          console.error("SCENARIO ERROR:", e?.message ?? e);
+          return null;
+        }),
     ]);
 
     return NextResponse.json({ storyText, apiScenario });
