@@ -61,6 +61,8 @@ export type ActivityPickerProps = {
   onAdd: (activityId: string) => void;
   onRemove: (activityId: string) => void;
   onConfirm: () => void;
+  /** `page`: full card with EP header. `panel`: slide-out column — no EP header, scrollable list + pinned End Week. */
+  variant?: "page" | "panel";
 };
 
 export default function ActivityPicker({
@@ -71,7 +73,9 @@ export default function ActivityPicker({
   onAdd,
   onRemove,
   onConfirm,
+  variant = "page",
 }: ActivityPickerProps) {
+  const isPanel = variant === "panel";
   const spentEp = weekSelections.reduce((sum, id) => {
     const a = activities.find((act) => act.id === id);
     return sum + (a?.epCost ?? 0);
@@ -79,13 +83,23 @@ export default function ActivityPicker({
   const canConfirm = spentEp >= 1;
   const epColor = epDisplayColor(energyRemaining);
 
-  const rootStyle: CSSProperties = {
+  const rootPage: CSSProperties = {
     backgroundColor: BG,
     color: "#FFFFFF",
     padding: "1.25rem",
     borderRadius: "10px",
     maxWidth: "800px",
     margin: "0 auto",
+    fontFamily:
+      'var(--font-body), Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+  };
+
+  const rootPanel: CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    flex: 1,
+    minHeight: 0,
+    color: "#FFFFFF",
     fontFamily:
       'var(--font-body), Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
   };
@@ -126,15 +140,37 @@ export default function ActivityPicker({
     color: "rgba(255, 255, 255, 0.55)",
   };
 
-  const gridStyle: CSSProperties = {
+  const gridStylePage: CSSProperties = {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
     gap: "0.85rem",
     marginBottom: "1.25rem",
   };
 
-  const footerStyle: CSSProperties = {
+  const gridStylePanel: CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: "0.65rem",
+    paddingBottom: "0.75rem",
+  };
+
+  const scrollAreaPanel: CSSProperties = {
+    flex: 1,
+    minHeight: 0,
+    overflowY: "auto",
+    padding: "0 6px 4px",
+    WebkitOverflowScrolling: "touch",
+  };
+
+  const footerStylePage: CSSProperties = {
     marginTop: "0.25rem",
+  };
+
+  const footerStylePanel: CSSProperties = {
+    flexShrink: 0,
+    padding: "12px 8px 16px",
+    borderTop: "1px solid rgba(255, 255, 255, 0.1)",
+    marginTop: "auto",
   };
 
   const confirmStyle: CSSProperties = {
@@ -151,8 +187,134 @@ export default function ActivityPicker({
     transition: "background-color 0.2s ease, opacity 0.2s ease",
   };
 
+  const cards = activities.map((activity) => {
+    const count = countSelections(weekSelections, activity.id);
+    const selected = count > 0;
+    const cannotAdd = activity.epCost > energyRemaining;
+
+    const titleRow: CSSProperties = {
+      display: "flex",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: "0.5rem",
+      marginBottom: "0.4rem",
+    };
+
+    const nameStyle: CSSProperties = {
+      fontWeight: 700,
+      fontSize: "1rem",
+      lineHeight: 1.25,
+      color: "#FFFFFF",
+      flex: 1,
+    };
+
+    const badgeStyle: CSSProperties = {
+      flexShrink: 0,
+      fontSize: "0.7rem",
+      fontWeight: 700,
+      padding: "0.15rem 0.4rem",
+      borderRadius: "5px",
+      backgroundColor: ORANGE,
+      color: "#FFFFFF",
+    };
+
+    const metaStyle: CSSProperties = {
+      fontSize: "0.8rem",
+      color: "rgba(255, 255, 255, 0.72)",
+      marginBottom: "0.5rem",
+      lineHeight: 1.35,
+    };
+
+    const epLineStyle: CSSProperties = {
+      fontSize: "0.85rem",
+      color: ORANGE,
+      fontWeight: 700,
+      marginBottom: "0.45rem",
+    };
+
+    const fxStyle: CSSProperties = {
+      fontSize: "0.8rem",
+      color: "rgba(255, 255, 255, 0.88)",
+      lineHeight: 1.45,
+      marginBottom: "0.65rem",
+      flex: 1,
+    };
+
+    const cardClass = [
+      "osu-activity-card",
+      selected ? "osu-activity-card--selected" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    return (
+      <div key={activity.id} className={cardClass}>
+        <div style={titleRow}>
+          <div style={nameStyle}>{activity.name}</div>
+          {selected ? (
+            <span style={badgeStyle} aria-label={`${count} selected`}>
+              x{count}
+            </span>
+          ) : null}
+        </div>
+        <div style={metaStyle}>{activity.location}</div>
+        <div style={epLineStyle}>{activity.epCost} EP each</div>
+        <div style={fxStyle}>{formatEffectsSummary(activity.effects)}</div>
+        <div className="osu-activity-actions">
+          {count > 0 ? (
+            <button
+              type="button"
+              className="osu-activity-btn osu-activity-btn--minus"
+              aria-label={`Remove one ${activity.name}`}
+              onClick={() => onRemove(activity.id)}
+            >
+              −
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="osu-activity-btn osu-activity-btn--plus"
+            aria-label={`Add one ${activity.name}`}
+            disabled={cannotAdd}
+            onClick={() => {
+              if (!cannotAdd) onAdd(activity.id);
+            }}
+          >
+            +
+          </button>
+        </div>
+      </div>
+    );
+  });
+
+  const footer = (
+    <footer style={isPanel ? footerStylePanel : footerStylePage}>
+      <button
+        type="button"
+        style={confirmStyle}
+        disabled={!canConfirm}
+        onClick={() => {
+          if (canConfirm) onConfirm();
+        }}
+      >
+        End Week
+      </button>
+    </footer>
+  );
+
+  if (isPanel) {
+    return (
+      <div style={rootPanel}>
+        <div style={scrollAreaPanel}>
+          <div style={gridStylePanel}>{cards}</div>
+        </div>
+        {footer}
+      </div>
+    );
+  }
+
   return (
-    <div style={rootStyle}>
+    <div style={rootPage}>
       <header style={headerStyle}>
         <div style={epLabelStyle}>Energy remaining</div>
         <div style={epValueStyle}>{energyRemaining} EP</div>
@@ -161,122 +323,9 @@ export default function ActivityPicker({
         </div>
       </header>
 
-      <div style={gridStyle}>
-        {activities.map((activity) => {
-          const count = countSelections(weekSelections, activity.id);
-          const selected = count > 0;
-          const cannotAdd = activity.epCost > energyRemaining;
+      <div style={gridStylePage}>{cards}</div>
 
-          const titleRow: CSSProperties = {
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            gap: "0.5rem",
-            marginBottom: "0.4rem",
-          };
-
-          const nameStyle: CSSProperties = {
-            fontWeight: 700,
-            fontSize: "1rem",
-            lineHeight: 1.25,
-            color: "#FFFFFF",
-            flex: 1,
-          };
-
-          const badgeStyle: CSSProperties = {
-            flexShrink: 0,
-            fontSize: "0.7rem",
-            fontWeight: 700,
-            padding: "0.15rem 0.4rem",
-            borderRadius: "5px",
-            backgroundColor: ORANGE,
-            color: "#FFFFFF",
-          };
-
-          const metaStyle: CSSProperties = {
-            fontSize: "0.8rem",
-            color: "rgba(255, 255, 255, 0.72)",
-            marginBottom: "0.5rem",
-            lineHeight: 1.35,
-          };
-
-          const epLineStyle: CSSProperties = {
-            fontSize: "0.85rem",
-            color: ORANGE,
-            fontWeight: 700,
-            marginBottom: "0.45rem",
-          };
-
-          const fxStyle: CSSProperties = {
-            fontSize: "0.8rem",
-            color: "rgba(255, 255, 255, 0.88)",
-            lineHeight: 1.45,
-            marginBottom: "0.65rem",
-            flex: 1,
-          };
-
-          const cardClass = [
-            "osu-activity-card",
-            selected ? "osu-activity-card--selected" : "",
-          ]
-            .filter(Boolean)
-            .join(" ");
-
-          return (
-            <div key={activity.id} className={cardClass}>
-              <div style={titleRow}>
-                <div style={nameStyle}>{activity.name}</div>
-                {selected ? (
-                  <span style={badgeStyle} aria-label={`${count} selected`}>
-                    x{count}
-                  </span>
-                ) : null}
-              </div>
-              <div style={metaStyle}>{activity.location}</div>
-              <div style={epLineStyle}>{activity.epCost} EP each</div>
-              <div style={fxStyle}>
-                {formatEffectsSummary(activity.effects)}
-              </div>
-              <div className="osu-activity-actions">
-                {count > 0 ? (
-                  <button
-                    type="button"
-                    className="osu-activity-btn osu-activity-btn--minus"
-                    aria-label={`Remove one ${activity.name}`}
-                    onClick={() => onRemove(activity.id)}
-                  >
-                    −
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  className="osu-activity-btn osu-activity-btn--plus"
-                  aria-label={`Add one ${activity.name}`}
-                  disabled={cannotAdd}
-                  onClick={() => {
-                    if (!cannotAdd) onAdd(activity.id);
-                  }}
-                >
-                  +
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <footer style={footerStyle}>
-        <button
-          type="button"
-          style={confirmStyle}
-          disabled={!canConfirm}
-          onClick={() => {
-            if (canConfirm) onConfirm();
-          }}
-        >
-          End Week
-        </button>
-      </footer>
+      {footer}
     </div>
   );
 }

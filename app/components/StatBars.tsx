@@ -11,6 +11,8 @@ export type StatBarsProps = {
   stats: StatBarsStats;
   /** When true, GPA shows "NA" and an empty bar (internal gpa can still be used for sim). */
   gpaAsNA?: boolean;
+  /** Compact HUD (e.g. top-left corner): smaller type and bars. */
+  compact?: boolean;
 };
 
 const TRACK_BG = "#333333";
@@ -44,9 +46,13 @@ function clamp100(n: number): number {
   return Math.min(100, Math.max(0, n));
 }
 
-export default function StatBars({ stats, gpaAsNA = false }: StatBarsProps) {
+export default function StatBars({
+  stats,
+  gpaAsNA = false,
+  compact = false,
+}: StatBarsProps) {
   const rowWrap: CSSProperties = {
-    marginBottom: 16,
+    marginBottom: compact ? 8 : 16,
     ...easeAll,
   };
 
@@ -54,27 +60,29 @@ export default function StatBars({ stats, gpaAsNA = false }: StatBarsProps) {
     display: "flex",
     alignItems: "baseline",
     justifyContent: "space-between",
-    marginBottom: 6,
+    marginBottom: compact ? 4 : 6,
     fontFamily:
       'var(--font-body), Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-    fontSize: "0.9rem",
+    fontSize: compact ? "12px" : "0.9rem",
     ...easeAll,
   };
 
   const labelStyle: CSSProperties = {
     color: "#FFFFFF",
     fontWeight: 600,
+    fontSize: compact ? "12px" : undefined,
     ...easeAll,
   };
 
   const valueStyle: CSSProperties = {
     color: "rgba(255, 255, 255, 0.9)",
     fontVariantNumeric: "tabular-nums",
+    fontSize: compact ? "12px" : undefined,
     ...easeAll,
   };
 
   const track: CSSProperties = {
-    height: 10,
+    height: compact ? 8 : 10,
     borderRadius: 5,
     backgroundColor: TRACK_BG,
     overflow: "hidden",
@@ -88,15 +96,15 @@ export default function StatBars({ stats, gpaAsNA = false }: StatBarsProps) {
     ...easeAll,
   };
 
+  const rootStyle: CSSProperties = {
+    width: "100%",
+    maxWidth: compact ? "100%" : 480,
+    fontFamily:
+      'var(--font-body), Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
+  };
+
   return (
-    <div
-      style={{
-        width: "100%",
-        maxWidth: 480,
-        fontFamily:
-          'var(--font-body), Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-      }}
-    >
+    <div style={rootStyle}>
       {ORDER.map((key) => {
         const raw = clamp100(stats[key]);
         const isGpaNA = key === "gpa" && gpaAsNA;

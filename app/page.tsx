@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import type { CSSProperties } from "react";
 import {
   ACTIVITIES,
   INITIAL_STATS,
@@ -118,6 +117,7 @@ export default function Home() {
   const [gameOverReason, setGameOverReason] = useState("");
   const [finalEnding, setFinalEnding] = useState<GraduationEnding | null>(null);
   const [aiEndingText, setAiEndingText] = useState("");
+  const [activitiesPanelOpen, setActivitiesPanelOpen] = useState(false);
 
   if (!gameStarted) {
     return (
@@ -141,6 +141,7 @@ export default function Home() {
           setGameOverReason("");
           setFinalEnding(null);
           setAiEndingText("");
+          setActivitiesPanelOpen(false);
           setGameStarted(true);
         }}
       />
@@ -174,31 +175,6 @@ export default function Home() {
       />
     );
   }
-
-  const shell: CSSProperties = {
-    minHeight: "100vh",
-    backgroundColor: "#1A1A1A",
-    color: "#FFFFFF",
-    padding: 24,
-    fontFamily:
-      'var(--font-body), Inter, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-  };
-
-  const header: CSSProperties = {
-    marginBottom: 24,
-    borderBottom: "1px solid rgba(255, 255, 255, 0.12)",
-    paddingBottom: 16,
-  };
-
-  const titleRow: CSSProperties = {
-    fontSize: "1.2rem",
-    fontWeight: 700,
-    marginBottom: 6,
-  };
-
-  const metaRow: CSSProperties = {
-    opacity: 0.92,
-  };
 
   async function resolveWeekEnd(
     statsBefore: WeekStats,
@@ -258,6 +234,7 @@ export default function Home() {
     const name = playerName;
 
     setIsGeneratingStory(true);
+    setActivitiesPanelOpen(false);
     setGamePhase("cutscene");
 
     void (async () => {
@@ -290,6 +267,7 @@ export default function Home() {
     if (currentWeek < 8) {
       setCurrentWeek((w) => w + 1);
       setWeekSelections([]);
+      setActivitiesPanelOpen(false);
       setGamePhase("picking");
       setEnergyRemaining(
         ENERGY_BY_YEAR[`year${currentYear}` as keyof typeof ENERGY_BY_YEAR],
@@ -302,6 +280,7 @@ export default function Home() {
       setCurrentYear(nextYear);
       setCurrentWeek(1);
       setWeekSelections([]);
+      setActivitiesPanelOpen(false);
       setGamePhase("picking");
       setEnergyRemaining(
         ENERGY_BY_YEAR[`year${nextYear}` as keyof typeof ENERGY_BY_YEAR],
@@ -343,51 +322,221 @@ export default function Home() {
     );
   }
 
+  const epHudColor =
+    energyRemaining <= 2
+      ? "#EF4444"
+      : energyRemaining <= 4
+        ? "#D73F09"
+        : "#FFFFFF";
+
   return (
-    <div style={shell}>
-      <header style={header}>
-        <div style={titleRow}>{playerName || "Player"}</div>
-        <div
-          className="osu-display-font osu-display-font--micro"
-          style={metaRow}
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element -- full-viewport HUD background */}
+      <img
+        src="/scenes/dorm.png"
+        alt=""
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          zIndex: 0,
+        }}
+      />
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100%",
+          height: "100%",
+          background: "rgba(0, 0, 0, 0.45)",
+          zIndex: 1,
+          pointerEvents: "none",
+        }}
+      />
+
+      <div
+        style={{
+          position: "fixed",
+          top: 16,
+          left: 16,
+          zIndex: 10,
+          width: 220,
+          background: "rgba(26, 26, 26, 0.85)",
+          borderRadius: 12,
+          padding: "10px 14px",
+          boxSizing: "border-box",
+        }}
+      >
+        <StatBars
+          stats={stats}
+          compact
+          gpaAsNA={
+            currentYear === 1 && currentWeek === 1 && gamePhase === "picking"
+          }
+        />
+      </div>
+
+      <div
+        style={{
+          position: "fixed",
+          top: 16,
+          right: 16,
+          zIndex: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          background: "rgba(26, 26, 26, 0.85)",
+          borderRadius: 20,
+          padding: "8px 16px",
+          boxSizing: "border-box",
+        }}
+      >
+        <span style={{ fontSize: "1.25rem", lineHeight: 1 }} aria-hidden>
+          ⚡
+        </span>
+        <span
+          style={{
+            fontSize: "1.75rem",
+            fontWeight: 800,
+            color: epHudColor,
+            fontVariantNumeric: "tabular-nums",
+            transition: "color 0.25s ease",
+          }}
         >
-          Year {currentYear} · Week {currentWeek}
-        </div>
-      </header>
-      <StatBars
-        stats={stats}
-        gpaAsNA={
-          currentYear === 1 && currentWeek === 1 && gamePhase === "picking"
-        }
-      />
-      <ActivityPicker
-        activities={ACTIVITIES}
-        energyRemaining={energyRemaining}
-        totalEnergy={
-          ENERGY_BY_YEAR[`year${currentYear}` as keyof typeof ENERGY_BY_YEAR]
-        }
-        weekSelections={weekSelections}
-        onAdd={(id) => {
-          const activity = ACTIVITIES.find((a) => a.id === id);
-          if (activity && energyRemaining >= activity.epCost) {
-            setWeekSelections([...weekSelections, id]);
-            setEnergyRemaining(energyRemaining - activity.epCost);
-          }
+          {energyRemaining}
+        </span>
+      </div>
+
+      <button
+        type="button"
+        className="osu-display-font"
+        onClick={() => setActivitiesPanelOpen(true)}
+        style={{
+          position: "fixed",
+          right: 0,
+          top: "50%",
+          transform: "translateY(-50%)",
+          zIndex: 20,
+          background: "#D73F09",
+          color: "#FFFFFF",
+          border: "none",
+          borderTopLeftRadius: 10,
+          borderBottomLeftRadius: 10,
+          padding: "14px 10px",
+          cursor: "pointer",
+          boxShadow: "-2px 0 12px rgba(0, 0, 0, 0.35)",
+          writingMode: "vertical-rl",
+          textOrientation: "mixed",
+          fontSize: "clamp(0.45rem, 1.8vw, 0.58rem)",
+          letterSpacing: "0.08em",
+          lineHeight: 1.5,
         }}
-        onRemove={(id) => {
-          const idx = weekSelections.lastIndexOf(id);
-          if (idx !== -1) {
-            const newSelections = [...weekSelections];
-            newSelections.splice(idx, 1);
-            const activity = ACTIVITIES.find((a) => a.id === id);
-            setWeekSelections(newSelections);
-            if (activity) {
-              setEnergyRemaining(energyRemaining + activity.epCost);
+      >
+        Activities ▶
+      </button>
+
+      <aside
+        aria-hidden={!activitiesPanelOpen}
+        style={{
+          position: "fixed",
+          right: 0,
+          top: 0,
+          width: 340,
+          height: "100vh",
+          zIndex: 30,
+          background: "#1A1A1A",
+          transform: activitiesPanelOpen
+            ? "translateX(0)"
+            : "translateX(100%)",
+          transition: "transform 0.3s ease",
+          display: "flex",
+          flexDirection: "column",
+          boxSizing: "border-box",
+          pointerEvents: activitiesPanelOpen ? "auto" : "none",
+        }}
+      >
+        <button
+          type="button"
+          className="osu-display-font"
+          onClick={() => setActivitiesPanelOpen(false)}
+          style={{
+            flexShrink: 0,
+            width: "100%",
+            padding: "12px 14px",
+            textAlign: "left",
+            background: "rgba(0, 0, 0, 0.25)",
+            color: "#FFFFFF",
+            border: "none",
+            borderBottom: "1px solid rgba(255, 255, 255, 0.12)",
+            cursor: "pointer",
+            fontSize: "clamp(0.45rem, 2vw, 0.62rem)",
+          }}
+        >
+          ◀ Close
+        </button>
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+          }}
+        >
+          <ActivityPicker
+            variant="panel"
+            activities={ACTIVITIES}
+            energyRemaining={energyRemaining}
+            totalEnergy={
+              ENERGY_BY_YEAR[
+                `year${currentYear}` as keyof typeof ENERGY_BY_YEAR
+              ]
             }
-          }
+            weekSelections={weekSelections}
+            onAdd={(id) => {
+              const activity = ACTIVITIES.find((a) => a.id === id);
+              if (activity && energyRemaining >= activity.epCost) {
+                setWeekSelections([...weekSelections, id]);
+                setEnergyRemaining(energyRemaining - activity.epCost);
+              }
+            }}
+            onRemove={(id) => {
+              const idx = weekSelections.lastIndexOf(id);
+              if (idx !== -1) {
+                const newSelections = [...weekSelections];
+                newSelections.splice(idx, 1);
+                const activity = ACTIVITIES.find((a) => a.id === id);
+                setWeekSelections(newSelections);
+                if (activity) {
+                  setEnergyRemaining(energyRemaining + activity.epCost);
+                }
+              }
+            }}
+            onConfirm={handleActivityConfirm}
+          />
+        </div>
+      </aside>
+
+      <div
+        className="osu-display-font osu-display-font--micro"
+        style={{
+          position: "fixed",
+          bottom: 16,
+          left: "50%",
+          transform: "translateX(-50%)",
+          zIndex: 10,
+          background: "rgba(26, 26, 26, 0.85)",
+          borderRadius: 20,
+          padding: "10px 18px",
+          whiteSpace: "nowrap",
         }}
-        onConfirm={handleActivityConfirm}
-      />
-    </div>
+      >
+        Year {currentYear} · Week {currentWeek}
+      </div>
+    </>
   );
 }
