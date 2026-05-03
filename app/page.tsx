@@ -374,6 +374,12 @@ export default function Home() {
   }
 
   async function handleCutsceneContinue() {
+    if (pendingApiScenario) {
+      setActiveScenario(pendingApiScenario);
+      setPendingApiScenario(null);
+      setGamePhase("scenario");
+      return;
+    }
     const guaranteed = getScenarioForWeek(
       currentYear,
       currentWeek,
@@ -381,12 +387,6 @@ export default function Home() {
     );
     if (guaranteed) {
       setActiveScenario(guaranteed as ScenarioForPopup);
-      setGamePhase("scenario");
-      return;
-    }
-    if (pendingApiScenario) {
-      setActiveScenario(pendingApiScenario);
-      setPendingApiScenario(null);
       setGamePhase("scenario");
       return;
     }

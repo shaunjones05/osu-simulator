@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
-import { buildCutsceneUserPrompt } from "@/app/lib/aiCutscene.js";
+import { randomUUID } from "node:crypto";
+import {
+  buildCutsceneUserPrompt,
+  buildWeeklyScenarioJsonPrompt,
+} from "@/app/lib/aiCutscene.js";
 import { anthropicMessagesComplete } from "@/app/lib/anthropicServer.js";
-import { getScenarioForWeek } from "@/app/lib/scenarios.js";
 
 const FALLBACK_STORY = "Another week at OSU in the books.";
 
@@ -9,7 +12,16 @@ function extractJsonObject(text: string): unknown {
   const trimmed = text.trim();
   const fence = /^```(?:json)?\s*([\s\S]*?)```$/im.exec(trimmed);
   const raw = fence ? fence[1].trim() : trimmed;
-  return JSON.parse(raw) as unknown;
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      return JSON.parse(raw.slice(start, end + 1)) as unknown;
+    }
+    throw new Error("Invalid JSON in model response");
+  }
 }
 
 function normalizeApiScenario(
@@ -66,37 +78,32 @@ export async function POST(req: Request) {
       : [];
     const finalStats = (body.finalStats as Record<string, number>) ?? {};
     const baseline = (body.baseline as Record<string, number>) ?? {};
-    const usedScenarioIds = Array.isArray(body.usedScenarioIds)
-      ? (body.usedScenarioIds as string[])
-      : [];
 
-    let storyText = FALLBACK_STORY;
-    try {
-      const prompt = buildCutsceneUserPrompt(
-        playerName,
-        year,
-        week,
-        chosenActivities,
-        finalStats,
-        baseline,
-      );
-      storyText = await anthropicMessagesComplete(prompt, 300);
-    } catch {
-      storyText = FALLBACK_STORY;
-    }
+    const cutscenePrompt = buildCutsceneUserPrompt(
+      playerName,
+      year,
+      week,
+      chosenActivities,
+      finalStats,
+      baseline,
+    );
+    const scenarioPrompt = buildWeeklyScenarioJsonPrompt(
+      playerName,
+      year,
+      week,
+      chosenActivities,
+      randomUUID(),
+    );
 
-    let apiScenario: ReturnType<typeof normalizeApiScenario> = null;
-    if (getScenarioForWeek(year, week, usedScenarioIds) === null) {
-      const scenarioPrompt = `Generate a college life scenario for an OSU student in Year ${year} Week ${week}. Format as JSON: { "title", "description", "choices": [{"label", "consequence": {"gpa", "health", "happiness", "social", "message"}}, {"label", "consequence": {...}}] }. Make it funny and OSU-specific. Reference real Corvallis locations. No sexual content. Consequences should not be shown to the player until after they choose — write the message as a reveal. Keep it college-realistic. Respond with only valid JSON, no other text.`;
-
-      try {
-        const rawJson = await anthropicMessagesComplete(scenarioPrompt, 900);
-        const parsed = extractJsonObject(rawJson);
-        apiScenario = normalizeApiScenario(parsed, year, week);
-      } catch {
-        apiScenario = null;
-      }
-    }
+    const [storyText, apiScenario] = await Promise.all([
+      anthropicMessagesComplete(cutscenePrompt, 300).catch(() => FALLBACK_STORY),
+      anthropicMessagesComplete(scenarioPrompt, 900)
+        .then((rawJson) => {
+          const parsed = extractJsonObject(rawJson);
+          return normalizeApiScenario(parsed, year, week);
+        })
+        .catch(() => null),
+    ]);
 
     return NextResponse.json({ storyText, apiScenario });
   } catch (e) {

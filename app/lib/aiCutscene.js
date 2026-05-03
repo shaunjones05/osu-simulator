@@ -178,6 +178,39 @@ export function buildCutsceneUserPrompt(
 }
 
 /**
+ * Prompt for the weekly choice scenario JSON (server route). Include a uniqueness hint so
+ * different players and playthroughs do not collapse to the same dilemmas.
+ *
+ * @param {string} playerName
+ * @param {number} year
+ * @param {number} week
+ * @param {unknown[]} chosenActivities
+ * @param {string} uniquenessHint
+ */
+export function buildWeeklyScenarioJsonPrompt(
+  playerName,
+  year,
+  week,
+  chosenActivities,
+  uniquenessHint,
+) {
+  const standing = yearToClassStanding(year);
+  const activityText = formatActivityClause(chosenActivities);
+  return (
+    `Invent one fresh college-life dilemma for "${playerName}", a ${standing} at Oregon State University (Year ${year}, Week ${week}). ` +
+    `This week they: ${activityText}. ` +
+    `Make it specific to OSU / Corvallis, funny but grounded, and not a generic "study vs party" clone unless the situation truly calls for it. ` +
+    `Use this inspiration seed to steer a unique angle (do not quote the seed verbatim): ${uniquenessHint}\n\n` +
+    `Respond with only valid JSON, no markdown fences, in exactly this shape: ` +
+    `{ "title": string, "description": string, "choices": [` +
+    `{ "label": string, "consequence": { "gpa"?: number, "health"?: number, "happiness"?: number, "social"?: number, "message": string } }, ` +
+    `{ "label": string, "consequence": { ... } } ] }. ` +
+    `Use two choices. Consequence stat deltas should be small integers (about -15 to 15). ` +
+    `Each consequence "message" is a reveal shown only after the player chooses. No sexual content.`
+  );
+}
+
+/**
  * @param {string} playerName
  * @param {number} year
  * @param {number} week
