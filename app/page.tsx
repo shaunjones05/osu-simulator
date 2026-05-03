@@ -971,25 +971,6 @@ export default function Home() {
         }}
       />
 
-      {/* eslint-disable-next-line @next/next/no-img-element -- animated GIF idle loop */}
-      <img
-        src="/characters/dorm-player.gif"
-        alt=""
-        style={{
-          position: "fixed",
-          left: "50%",
-          bottom: "min(8vh, 64px)",
-          transform: "translateX(-50%)",
-          zIndex: 2,
-          width: "auto",
-          height: "min(34vh, 200px)",
-          maxWidth: "min(42vw, 220px)",
-          pointerEvents: "none",
-          imageRendering: "pixelated",
-          filter: "drop-shadow(0 6px 12px rgba(0,0,0,0.45))",
-        }}
-      />
-
       {isGeneratingStory && gamePhase === "picking" ? (
         <div
           style={{
