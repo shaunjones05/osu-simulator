@@ -5,7 +5,6 @@ import {
   ACTIVITIES,
   WEEKS_PER_YEAR,
   INITIAL_STATS,
-  ENERGY_BY_YEAR,
   JOBS,
   SHOP,
   getSpecialEvent,
@@ -177,11 +176,32 @@ function formatStatDelta(delta: Record<string, number> | null | undefined) {
   return parts.length ? parts.join(" · ") : "—";
 }
 
-/** Fixed max EP per week (matches ENERGY_BY_YEAR in v2). */
+/** Fixed max EP per week for activity scheduling (see `gameData` energy by year). */
 const WEEKLY_EP_MAX = 5;
 
 /** EP cost for "Find My Soulmate" in the Dating panel. */
 const FIND_SOULMATE_EP_COST = 1;
+
+function getJobById(jobId: string | null) {
+  return jobId ? (JOBS.find((j) => j.id === jobId) ?? null) : null;
+}
+
+function jobWeeklyEpCost(jobId: string | null): number {
+  const j = getJobById(jobId);
+  return j?.epCost ?? 0;
+}
+
+/** EP available for activities after reserving the job at week start. */
+function energyAfterJobReservation(jobId: string | null): number {
+  return Math.max(0, WEEKLY_EP_MAX - jobWeeklyEpCost(jobId));
+}
+
+/** Non-crypto jobs with epCost above the weekly cap never receive pay that week. */
+function jobWeeklyPayEligible(jobId: string | null): boolean {
+  const j = getJobById(jobId);
+  if (!j || j.isCrypto) return true;
+  return (j.epCost ?? 0) <= WEEKLY_EP_MAX;
+}
 
 const ACTIVITY_SHORT_LABEL: Record<string, string> = {
   "study-valley-library": "Study",
@@ -405,8 +425,8 @@ export default function Home() {
   const [week1BaselineStats, setWeek1BaselineStats] = useState<WeekStats>(() => ({
     ...INITIAL_STATS,
   }));
-  const [energyRemaining, setEnergyRemaining] = useState(
-    ENERGY_BY_YEAR.year1,
+  const [energyRemaining, setEnergyRemaining] = useState(() =>
+    energyAfterJobReservation(null),
   );
   const [weekSelections, setWeekSelections] = useState<string[]>([]);
   const [gamePhase, setGamePhase] = useState<GamePhase>("picking");
@@ -535,7 +555,9 @@ export default function Home() {
           const baseline = { ...INITIAL_STATS };
           setStats(baseline);
           setWeek1BaselineStats(baseline);
-          setEnergyRemaining(ENERGY_BY_YEAR.year1);
+          setEnergyRemaining(
+            energyAfterJobReservation(null),
+          );
           setWeekSelections([]);
           setDatingPanelOpen(false);
           setShowBreakupConfirm(false);
@@ -977,8 +999,9 @@ export default function Home() {
     const job = activeJobId
       ? JOBS.find((j) => j.id === activeJobId)
       : null;
-    const jobEp = job?.epCost ?? 0;
-    const jobHadEnoughEp = jobEp === 0 || energyRemaining >= jobEp;
+    /** Job EP was reserved at week start; pay eligibility is only for over-cap jobs. */
+    const jobHadEnoughEp =
+      !job || Boolean(job.isCrypto) || jobWeeklyPayEligible(activeJobId);
 
     kalshiRollStartedRef.current = false;
 
@@ -1100,6 +1123,7 @@ export default function Home() {
 
   async function advanceAfterWeekResolved(latestStats: WeekStats) {
     const pj = pendingJobIdRef.current;
+    let nextJobIdForEnergy: string | null = activeJobId;
     if (pj) {
       pendingJobIdRef.current = null;
       setPendingJobId(null);
@@ -1107,6 +1131,7 @@ export default function Home() {
       const j = JOBS.find((x) => x.id === pj);
       if (accepted && j) {
         setActiveJobId(j.id);
+        nextJobIdForEnergy = j.id;
       }
       if (j) {
         setJobResultModal({
@@ -1132,7 +1157,7 @@ export default function Home() {
       setWeeklyPurchases([]);
       setWeeklyShopSpend(0);
       setGamePhase("picking");
-      setEnergyRemaining(WEEKLY_EP_MAX);
+      setEnergyRemaining(energyAfterJobReservation(nextJobIdForEnergy));
       return;
     }
 
@@ -1151,7 +1176,7 @@ export default function Home() {
       setWeeklyPurchases([]);
       setWeeklyShopSpend(0);
       setGamePhase("yearTransition");
-      setEnergyRemaining(WEEKLY_EP_MAX);
+      setEnergyRemaining(energyAfterJobReservation(nextJobIdForEnergy));
       return;
     }
 
@@ -1636,7 +1661,11 @@ export default function Home() {
         )
       : undefined;
 
-  const spentEpThisWeek = WEEKLY_EP_MAX - energyRemaining;
+  const jobEpReserved = jobWeeklyEpCost(activeJobId);
+  const activityEpSpentThisWeek = weekSelections.reduce((sum, id) => {
+    const a = ACTIVITIES.find((ac) => ac.id === id);
+    return sum + (a?.epCost ?? 0);
+  }, 0);
   const slidePanelsOpen =
     activitiesPanelOpen ||
     careerPanelOpen ||
@@ -1745,12 +1774,24 @@ export default function Home() {
             ${money}
           </span>
         </div>
+        {activeJobId && jobEpReserved > 0 ? (
+          <div
+            style={{
+              fontSize: 11,
+              lineHeight: 1.35,
+              color: "rgba(255,255,255,0.45)",
+              marginTop: 2,
+            }}
+          >
+            Job: -{jobEpReserved} EP reserved
+          </div>
+        ) : null}
       </div>
 
       <div
         style={{
           position: "fixed",
-          top: 70,
+          top: activeJobId && jobEpReserved > 0 ? 100 : 70,
           left: 16,
           zIndex: 10,
           width: 248,
@@ -1811,9 +1852,9 @@ export default function Home() {
           onClick={openActivitiesPanel}
           style={hudBtn}
         >
-          {spentEpThisWeek > 0 ? (
+          {activityEpSpentThisWeek > 0 ? (
             <span
-              aria-label={`${spentEpThisWeek} EP spent this week`}
+              aria-label={`${activityEpSpentThisWeek} EP spent on activities this week`}
               style={{
                 position: "absolute",
                 top: 8,
@@ -1832,7 +1873,7 @@ export default function Home() {
                 border: "1px solid rgba(255,255,255,0.35)",
               }}
             >
-              {spentEpThisWeek}
+              {activityEpSpentThisWeek}
             </span>
           ) : null}
           Activities
@@ -1915,7 +1956,7 @@ export default function Home() {
             variant="panel"
             activities={ACTIVITIES}
             energyRemaining={energyRemaining}
-            totalEnergy={WEEKLY_EP_MAX}
+            totalEnergy={WEEKLY_EP_MAX - jobEpReserved}
             currentYear={currentYear}
             weekSelections={weekSelections}
             onAdd={(id) => {
@@ -2011,7 +2052,14 @@ export default function Home() {
             <button
               type="button"
               className="osu-display-font"
-              onClick={() => setActiveJobId(null)}
+              onClick={() => {
+                const j = getJobById(activeJobId);
+                const refund = j?.epCost ?? 0;
+                setActiveJobId(null);
+                if (refund > 0) {
+                  setEnergyRemaining((e) => e + refund);
+                }
+              }}
               style={{
                 marginBottom: 14,
                 width: "100%",
@@ -3284,18 +3332,20 @@ export default function Home() {
           <button
             type="button"
             aria-label="Next week"
-            disabled={spentEpThisWeek < 1}
+            disabled={activityEpSpentThisWeek < 1}
             onClick={() => handleActivityConfirm()}
             style={{
               width: 60,
               height: 60,
               borderRadius: "50%",
               border: "none",
-              background: spentEpThisWeek < 1 ? "#8B5A45" : "#CC4500",
+              background:
+                activityEpSpentThisWeek < 1 ? "#8B5A45" : "#CC4500",
               color: "#FFFFFF",
               fontSize: 28,
               lineHeight: 1,
-              cursor: spentEpThisWeek < 1 ? "not-allowed" : "pointer",
+              cursor:
+                activityEpSpentThisWeek < 1 ? "not-allowed" : "pointer",
               boxShadow: "0 6px 22px rgba(0, 0, 0, 0.5)",
               display: "flex",
               alignItems: "center",
@@ -3540,7 +3590,7 @@ export default function Home() {
           >
             <p style={{ margin: "0 0 18px", lineHeight: 1.55, fontSize: 15 }}>
               {jobResultModal.accepted
-                ? `You got the job! You're now working as ${jobResultModal.jobName}. ${jobResultModal.epCost} EP will be charged each week and you'll earn $${jobResultModal.weeklyPay}/week.`
+                ? `You got the job! You're now working as ${jobResultModal.jobName}. ${jobResultModal.epCost} EP is reserved at the start of each week for your shift, and you'll earn $${jobResultModal.weeklyPay}/week.`
                 : "Sorry, your application was not accepted."}
             </p>
             <button
