@@ -262,12 +262,15 @@ export function shopItemPassesAgeGate(item, currentYear, fakeidRisk) {
  *   effect: StatDelta;
  *   isOneTime: boolean;
  *   weeklyBonus: StatDelta | null;
- *   category?: "shop" | "underground" | "transport";
+ *   category?: "shop" | "underground" | "transport" | "collectible";
+ *   isConsumable?: boolean;
  *   isFakeId?: boolean;
  *   fakeidRisk?: "high" | "low";
  *   minLegalPurchaseYear?: number;
  * }>}
  */
+export const POKEMON_PACK_SHOP_ID = "pokemon-pack";
+
 export const SHOP = [
   {
     id: "shop-coffee-dutch",
@@ -278,6 +281,7 @@ export const SHOP = [
     isOneTime: true,
     weeklyBonus: null,
     category: "shop",
+    isConsumable: true,
   },
   {
     id: "shop-meal-local-boyz",
@@ -288,6 +292,7 @@ export const SHOP = [
     isOneTime: true,
     weeklyBonus: null,
     category: "shop",
+    isConsumable: true,
   },
   {
     id: "shop-rivas-late",
@@ -298,6 +303,7 @@ export const SHOP = [
     isOneTime: true,
     weeklyBonus: null,
     category: "shop",
+    isConsumable: true,
   },
   {
     id: "shop-drinks-tiki",
@@ -308,6 +314,7 @@ export const SHOP = [
     isOneTime: true,
     weeklyBonus: null,
     category: "shop",
+    isConsumable: true,
     minLegalPurchaseYear: 3,
   },
   {
@@ -319,6 +326,7 @@ export const SHOP = [
     isOneTime: true,
     weeklyBonus: null,
     category: "shop",
+    isConsumable: true,
   },
   {
     id: "shop-tailgate-supplies",
@@ -329,6 +337,7 @@ export const SHOP = [
     isOneTime: true,
     weeklyBonus: null,
     category: "shop",
+    isConsumable: true,
   },
   {
     id: "shop-tutor-library",
@@ -339,6 +348,7 @@ export const SHOP = [
     isOneTime: true,
     weeklyBonus: null,
     category: "shop",
+    isConsumable: true,
   },
   {
     id: "shop-concert-gill",
@@ -349,6 +359,7 @@ export const SHOP = [
     isOneTime: true,
     weeklyBonus: null,
     category: "shop",
+    isConsumable: true,
   },
   {
     id: "shop-coffee-maker",
@@ -389,6 +400,17 @@ export const SHOP = [
     isOneTime: false,
     weeklyBonus: { gpa: 3, happiness: 1 },
     category: "shop",
+  },
+  {
+    id: "pokemon-pack",
+    name: "Pokémon Pack",
+    description: "Could be anything. Probably not a Charizard.",
+    cost: 5,
+    effect: {},
+    isOneTime: true,
+    weeklyBonus: null,
+    category: "collectible",
+    isConsumable: false,
   },
   {
     id: "bike",
@@ -477,12 +499,68 @@ export function playerOwnsAnyFakeIdAsset(ownedAssets) {
   });
 }
 
+/** True if this row counts toward Assets tab and net worth (excludes consumables). */
+export function assetRowContributesToNetWorth(row) {
+  if (!row || typeof row !== "object") return false;
+  if (row.kind === "pokemon") return true;
+  const def = SHOP.find((s) => s.id === row.shopItemId);
+  if (!def) return false;
+  return !def.isConsumable;
+}
+
+export function filterAssetsForDisplay(ownedAssets) {
+  if (!Array.isArray(ownedAssets)) return [];
+  return ownedAssets.filter(assetRowContributesToNetWorth);
+}
+
 export function sumOwnedAssetPurchasePrices(ownedAssets) {
   if (!Array.isArray(ownedAssets)) return 0;
   return ownedAssets.reduce((sum, row) => {
+    if (!assetRowContributesToNetWorth(row)) return sum;
     const n = Number(row?.purchasePrice);
     return sum + (Number.isFinite(n) ? n : 0);
   }, 0);
+}
+
+/** Quick sell: Pokémon cards at 100% face value; other sellables at 80%. */
+export function computeAssetQuickSellPayout(row) {
+  if (!row) return 0;
+  if (row.kind === "pokemon") {
+    const n = Number(row.purchasePrice);
+    return Number.isFinite(n) ? Math.floor(n) : 0;
+  }
+  return computeQuickSellPayout(row.purchasePrice);
+}
+
+export function assetRowAllowsQuickSell(row) {
+  if (!row || typeof row !== "object") return false;
+  if (row.kind === "pokemon") return true;
+  const def = SHOP.find((s) => s.id === row.shopItemId);
+  return shopItemAllowsQuickSell(def);
+}
+
+/** Outcome when opening a Pokémon Pack from the shop (not an inventory row). */
+export function rollPokemonPackPull() {
+  const r = Math.random();
+  if (r < 0.7) {
+    return {
+      shopItemId: "pokemon-card-common",
+      name: "Pokémon Card (Common)",
+      value: 1,
+    };
+  }
+  if (r < 0.9) {
+    return {
+      shopItemId: "pokemon-card-rare",
+      name: "Pokémon Card (Rare)",
+      value: 20,
+    };
+  }
+  return {
+    shopItemId: "pokemon-card-holo",
+    name: "Pokémon Card (Holo Rare ✨)",
+    value: 1000,
+  };
 }
 
 /** Cash on hand plus 100% of recorded asset purchase prices (not quick-sell value). */

@@ -18,10 +18,12 @@ import {
   KALSHI_STREAKER_SCENARIO,
   KALSHI_STREAKER_SCENARIO_ID,
   shopItemStacksOnPurchase,
-  shopItemAllowsQuickSell,
   playerOwnsAnyFakeIdAsset,
   computeNetWorth,
-  computeQuickSellPayout,
+  computeAssetQuickSellPayout,
+  filterAssetsForDisplay,
+  assetRowAllowsQuickSell,
+  rollPokemonPackPull,
 } from "./lib/gameData.js";
 import {
   applyWeek,
@@ -71,7 +73,30 @@ type OwnedAssetEntry = {
   shopItemId: string;
   name: string;
   purchasePrice: number;
+  kind?: "pokemon";
 };
+
+/** Narrow shop row (inferred `typeof SHOP` from JS can widen `id` oddly). */
+type ShopPurchaseRow = {
+  id: string;
+  name: string;
+  description: string;
+  cost: number;
+  effect: Record<string, number>;
+  isOneTime: boolean;
+  weeklyBonus: Record<string, number> | null;
+  category?: string;
+  isConsumable?: boolean;
+  isFakeId?: boolean;
+  fakeidRisk?: FakeIdRisk;
+  minLegalPurchaseYear?: number;
+};
+
+/** Minimum font size (px) for Shop / Assets / Summary / Career panel bodies. */
+const PANEL_FS = 16;
+const PANEL_H2 = 18;
+
+const POKEMON_PACK_ID = "pokemon-pack";
 
 type WeekHistoryEventSnippet = { title: string; description: string };
 
@@ -773,6 +798,12 @@ export default function Home() {
   }
 
   function handleActivityConfirm() {
+    const spentEpConfirm = weekSelections.reduce((sum, id) => {
+      const a = ACTIVITIES.find((ac) => ac.id === id);
+      return sum + (a?.epCost ?? 0);
+    }, 0);
+    if (spentEpConfirm < 1) return;
+
     const selections = [...weekSelections];
 
     if (!firstPartyDone && selections.includes("frat-party-26th")) {
@@ -1144,20 +1175,47 @@ export default function Home() {
     showHudToast(fullMessage);
   }
 
-  function completeShopPurchase(item: (typeof SHOP)[number]) {
-    const instanceId =
-      typeof crypto !== "undefined" && "randomUUID" in crypto
-        ? crypto.randomUUID()
-        : `a-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-    setOwnedAssets((prev) => [
-      ...prev,
-      {
+  function completeShopPurchase(raw: (typeof SHOP)[number]) {
+    const item = raw as unknown as ShopPurchaseRow;
+    if (item.id === POKEMON_PACK_ID) {
+      setMoney((m) => clampMoney(m - item.cost));
+      setWeeklyShopSpend((n) => n + item.cost);
+      setWeeklyPurchases((prev) => [...prev, item.name]);
+      setStats((st) => normalizeWeekStats(applyStatDelta(st, item.effect)));
+      const pull = rollPokemonPackPull();
+      const instanceId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? `pokemon-card-${crypto.randomUUID()}`
+          : `pokemon-card-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+      setOwnedAssets((prev) => [
+        ...prev,
+        {
+          instanceId,
+          shopItemId: pull.shopItemId,
+          name: pull.name,
+          purchasePrice: pull.value,
+          kind: "pokemon",
+        },
+      ]);
+      showHudToast(
+        `You pulled a ${pull.name}! Worth $${pull.value}.`,
+      );
+      return;
+    }
+
+    if (item.isConsumable !== true) {
+      const instanceId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `a-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+      const row: OwnedAssetEntry = {
         instanceId,
         shopItemId: item.id,
         name: item.name,
         purchasePrice: item.cost,
-      },
-    ]);
+      };
+      setOwnedAssets((prev) => [...prev, row]);
+    }
     setMoney((m) => clampMoney(m - item.cost));
     setWeeklyShopSpend((n) => n + item.cost);
     setWeeklyPurchases((prev) => [...prev, item.name]);
@@ -1169,12 +1227,13 @@ export default function Home() {
       setOwnedShopIds((prev) =>
         prev.includes(item.id) ? prev : [...prev, item.id],
       );
-      setActivePerks((prev) => [
-        ...prev,
-        { shopItemId: item.id, weeklyBonus: item.weeklyBonus },
-      ]);
+      const perk: ActivePerk = {
+        shopItemId: item.id,
+        weeklyBonus: item.weeklyBonus,
+      };
+      setActivePerks((prev) => [...prev, perk]);
     }
-    showShopPurchaseToast(item);
+    showShopPurchaseToast(raw);
   }
 
   function buyShopItem(itemId: string) {
@@ -1200,14 +1259,18 @@ export default function Home() {
 
   function quickSellAsset(instanceId: string) {
     const row = ownedAssets.find((a) => a.instanceId === instanceId);
-    if (!row) return;
+    if (!row || !assetRowAllowsQuickSell(row)) return;
     const item = SHOP.find((i) => i.id === row.shopItemId);
-    if (!item || !shopItemAllowsQuickSell(item)) return;
     const nextList = ownedAssets.filter((a) => a.instanceId !== instanceId);
-    const payout = computeQuickSellPayout(row.purchasePrice);
+    const payout = computeAssetQuickSellPayout(row);
     setOwnedAssets(nextList);
     setMoney((m) => clampMoney(m + payout));
-    if (item.weeklyBonus && !shopItemStacksOnPurchase(item)) {
+    if (
+      item &&
+      item.weeklyBonus &&
+      !shopItemStacksOnPurchase(item) &&
+      row.kind !== "pokemon"
+    ) {
       const stillHas = nextList.filter((a) => a.shopItemId === item.id).length;
       if (stillHas === 0) {
         setOwnedShopIds((prev) => prev.filter((id) => id !== item.id));
@@ -1241,10 +1304,13 @@ export default function Home() {
     setFakeIdConfirmItemId(null);
   }
 
-  const shopRegularItems = SHOP.filter((i) => i.category === "shop");
+  const shopRegularItems = SHOP.filter(
+    (i) => i.category === "shop" || i.category === "collectible",
+  );
   const shopTransportItems = SHOP.filter((i) => i.category === "transport");
   const shopUnderground = SHOP.filter((i) => i.category === "underground");
   const fakeIdSoldOut = playerOwnsAnyFakeIdAsset(ownedAssets);
+  const displayedAssets = filterAssetsForDisplay(ownedAssets);
   const netWorth = computeNetWorth(money, ownedAssets);
 
   if (gamePhase === "scenario" && activeScenario) {
@@ -1607,6 +1673,7 @@ export default function Home() {
               }
             }}
             onConfirm={handleActivityConfirm}
+            hideFooter
           />
         </div>
       </aside>
@@ -1643,7 +1710,7 @@ export default function Home() {
             border: "none",
             borderBottom: "1px solid rgba(255, 255, 255, 0.12)",
             cursor: "pointer",
-            fontSize: "clamp(0.45rem, 2vw, 0.62rem)",
+            fontSize: PANEL_FS,
           }}
         >
           ◀ Close
@@ -1655,13 +1722,15 @@ export default function Home() {
             overflowY: "auto",
             padding: "12px 14px 24px",
             color: "#E8E8E8",
+            fontSize: PANEL_FS,
+            lineHeight: 1.45,
           }}
         >
           <h2
             className="osu-display-font"
             style={{
               margin: "0 0 12px",
-              fontSize: "clamp(0.55rem, 2.2vw, 0.75rem)",
+              fontSize: PANEL_H2,
               color: "#FFFFFF",
             }}
           >
@@ -1681,7 +1750,7 @@ export default function Home() {
                 background: "rgba(239, 68, 68, 0.12)",
                 color: "#FCA5A5",
                 cursor: "pointer",
-                fontSize: "clamp(0.42rem, 1.8vw, 0.55rem)",
+                fontSize: PANEL_FS,
               }}
             >
               Quit current job
@@ -1707,7 +1776,7 @@ export default function Home() {
                 <div
                   className="osu-display-font"
                   style={{
-                    fontSize: "clamp(0.48rem, 2vw, 0.62rem)",
+                    fontSize: PANEL_FS,
                     color: "#FFFFFF",
                     marginBottom: 4,
                   }}
@@ -1716,7 +1785,7 @@ export default function Home() {
                 </div>
                 <div
                   style={{
-                    fontSize: "clamp(0.38rem, 1.5vw, 0.5rem)",
+                    fontSize: PANEL_FS,
                     opacity: 0.85,
                     marginBottom: 6,
                   }}
@@ -1730,7 +1799,7 @@ export default function Home() {
                 <p
                   style={{
                     margin: "0 0 10px",
-                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
+                    fontSize: PANEL_FS,
                     lineHeight: 1.45,
                     opacity: 0.9,
                   }}
@@ -1750,7 +1819,7 @@ export default function Home() {
                     background: isCurrent ? "rgba(29,158,117,0.35)" : "#D73F09",
                     color: "#FFFFFF",
                     cursor: isCurrent ? "default" : "pointer",
-                    fontSize: "clamp(0.4rem, 1.6vw, 0.52rem)",
+                    fontSize: PANEL_FS,
                     opacity: isCurrent ? 0.85 : 1,
                   }}
                 >
@@ -1794,7 +1863,7 @@ export default function Home() {
             border: "none",
             borderBottom: "1px solid rgba(255, 255, 255, 0.12)",
             cursor: "pointer",
-            fontSize: "clamp(0.45rem, 2vw, 0.62rem)",
+            fontSize: PANEL_FS,
           }}
         >
           ◀ Close
@@ -1806,13 +1875,15 @@ export default function Home() {
             overflowY: "auto",
             padding: "12px 14px 24px",
             color: "#E8E8E8",
+            fontSize: PANEL_FS,
+            lineHeight: 1.45,
           }}
         >
           <h2
             className="osu-display-font"
             style={{
               margin: "0 0 12px",
-              fontSize: "clamp(0.55rem, 2.2vw, 0.75rem)",
+              fontSize: PANEL_H2,
               color: "#FFFFFF",
             }}
           >
@@ -1849,7 +1920,7 @@ export default function Home() {
                   <div
                     className="osu-display-font"
                     style={{
-                      fontSize: "clamp(0.48rem, 2vw, 0.62rem)",
+                      fontSize: PANEL_FS,
                       color: "#FFFFFF",
                     }}
                   >
@@ -1860,7 +1931,7 @@ export default function Home() {
                       className="osu-display-font osu-display-font--micro"
                       style={{
                         flexShrink: 0,
-                        fontSize: "clamp(0.34rem, 1.3vw, 0.44rem)",
+                        fontSize: PANEL_FS,
                         padding: "2px 8px",
                         borderRadius: 999,
                         background: "rgba(29, 158, 117, 0.25)",
@@ -1875,7 +1946,7 @@ export default function Home() {
                 <p
                   style={{
                     margin: "0 0 8px",
-                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
+                    fontSize: PANEL_FS,
                     lineHeight: 1.45,
                     opacity: 0.9,
                   }}
@@ -1884,7 +1955,7 @@ export default function Home() {
                 </p>
                 <div
                   style={{
-                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
+                    fontSize: PANEL_FS,
                     marginBottom: 6,
                     color: "#1D9E75",
                     fontWeight: 700,
@@ -1894,16 +1965,23 @@ export default function Home() {
                 </div>
                 <div
                   style={{
-                    fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+                    fontSize: PANEL_FS,
                     marginBottom: 8,
                     opacity: 0.88,
                   }}
                 >
-                  Now: {formatStatDelta(item.effect)}
+                  Now:{" "}
+                  {formatStatDelta(item.effect as Record<string, number>)}
                   {!item.isOneTime && item.weeklyBonus ? (
                     <>
                       {" "}
-                      · Weekly: {formatStatDelta(item.weeklyBonus)}
+                      · Weekly:{" "}
+                      {formatStatDelta(
+                        item.weeklyBonus as unknown as Record<
+                          string,
+                          number
+                        >,
+                      )}
                     </>
                   ) : null}
                 </div>
@@ -1911,7 +1989,7 @@ export default function Home() {
                   <p
                     style={{
                       margin: "0 0 8px",
-                      fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+                      fontSize: PANEL_FS,
                       lineHeight: 1.45,
                       color: "#FCA5A5",
                       fontStyle: "italic",
@@ -1934,7 +2012,7 @@ export default function Home() {
                     background: !canBuy ? "rgba(120,120,120,0.35)" : "#1D9E75",
                     color: "#FFFFFF",
                     cursor: !canBuy ? "not-allowed" : "pointer",
-                    fontSize: "clamp(0.4rem, 1.6vw, 0.52rem)",
+                    fontSize: PANEL_FS,
                   }}
                 >
                   {ownedOngoing
@@ -1953,7 +2031,7 @@ export default function Home() {
             className="osu-display-font"
             style={{
               margin: "20px 0 10px",
-              fontSize: "clamp(0.5rem, 2vw, 0.65rem)",
+              fontSize: PANEL_H2,
               color: "#93C5FD",
             }}
           >
@@ -1978,7 +2056,7 @@ export default function Home() {
                 <div
                   className="osu-display-font"
                   style={{
-                    fontSize: "clamp(0.48rem, 2vw, 0.62rem)",
+                    fontSize: PANEL_FS,
                     color: "#FFFFFF",
                     marginBottom: 6,
                   }}
@@ -1988,7 +2066,7 @@ export default function Home() {
                 <p
                   style={{
                     margin: "0 0 8px",
-                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
+                    fontSize: PANEL_FS,
                     lineHeight: 1.45,
                     opacity: 0.9,
                   }}
@@ -1997,7 +2075,7 @@ export default function Home() {
                 </p>
                 <div
                   style={{
-                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
+                    fontSize: PANEL_FS,
                     marginBottom: 6,
                     color: "#93C5FD",
                     fontWeight: 700,
@@ -2007,12 +2085,13 @@ export default function Home() {
                 </div>
                 <div
                   style={{
-                    fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+                    fontSize: PANEL_FS,
                     marginBottom: 8,
                     opacity: 0.88,
                   }}
                 >
-                  Now: {formatStatDelta(item.effect)}
+                  Now:{" "}
+                  {formatStatDelta(item.effect as Record<string, number>)}
                 </div>
                 <button
                   type="button"
@@ -2027,7 +2106,7 @@ export default function Home() {
                     background: !canBuy ? "rgba(120,120,120,0.35)" : "#2563EB",
                     color: "#FFFFFF",
                     cursor: !canBuy ? "not-allowed" : "pointer",
-                    fontSize: "clamp(0.4rem, 1.6vw, 0.52rem)",
+                    fontSize: PANEL_FS,
                   }}
                 >
                   {!ageOk
@@ -2044,7 +2123,7 @@ export default function Home() {
             className="osu-display-font"
             style={{
               margin: "20px 0 10px",
-              fontSize: "clamp(0.5rem, 2vw, 0.65rem)",
+              fontSize: PANEL_H2,
               color: "#FCA5A5",
             }}
           >
@@ -2053,7 +2132,7 @@ export default function Home() {
           <p
             style={{
               margin: "0 0 12px",
-              fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+              fontSize: PANEL_FS,
               lineHeight: 1.45,
               color: "#F87171",
               border: "1px solid rgba(248, 113, 113, 0.45)",
@@ -2089,7 +2168,7 @@ export default function Home() {
                 <div
                   className="osu-display-font"
                   style={{
-                    fontSize: "clamp(0.48rem, 2vw, 0.62rem)",
+                    fontSize: PANEL_FS,
                     color: "#FECACA",
                     marginBottom: 6,
                   }}
@@ -2099,7 +2178,7 @@ export default function Home() {
                 <p
                   style={{
                     margin: "0 0 8px",
-                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
+                    fontSize: PANEL_FS,
                     lineHeight: 1.45,
                     color: "#FEE2E2",
                   }}
@@ -2109,7 +2188,7 @@ export default function Home() {
                 <p
                   style={{
                     margin: "0 0 8px",
-                    fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+                    fontSize: PANEL_FS,
                     lineHeight: 1.45,
                     color: "#FCA5A5",
                   }}
@@ -2120,7 +2199,7 @@ export default function Home() {
                 </p>
                 <div
                   style={{
-                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
+                    fontSize: PANEL_FS,
                     marginBottom: 6,
                     color: "#F87171",
                     fontWeight: 700,
@@ -2130,13 +2209,14 @@ export default function Home() {
                 </div>
                 <div
                   style={{
-                    fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+                    fontSize: PANEL_FS,
                     marginBottom: 8,
                     opacity: 0.9,
                     color: "#FEE2E2",
                   }}
                 >
-                  Instant: {formatStatDelta(item.effect)}
+                  Instant:{" "}
+                  {formatStatDelta(item.effect as Record<string, number>)}
                 </div>
                 <button
                   type="button"
@@ -2153,7 +2233,7 @@ export default function Home() {
                       : "#B91C1C",
                     color: "#FFFFFF",
                     cursor: !canBuyUnderground ? "not-allowed" : "pointer",
-                    fontSize: "clamp(0.4rem, 1.6vw, 0.52rem)",
+                    fontSize: PANEL_FS,
                   }}
                 >
                   {soldOut
@@ -2200,7 +2280,7 @@ export default function Home() {
             border: "none",
             borderBottom: "1px solid rgba(255, 255, 255, 0.12)",
             cursor: "pointer",
-            fontSize: "clamp(0.45rem, 2vw, 0.62rem)",
+            fontSize: PANEL_FS,
           }}
         >
           ◀ Close
@@ -2212,13 +2292,15 @@ export default function Home() {
             overflowY: "auto",
             padding: "12px 14px 24px",
             color: "#E8E8E8",
+            fontSize: PANEL_FS,
+            lineHeight: 1.45,
           }}
         >
           <h2
             className="osu-display-font"
             style={{
               margin: "0 0 12px",
-              fontSize: "clamp(0.55rem, 2.2vw, 0.75rem)",
+              fontSize: PANEL_H2,
               color: "#FFFFFF",
             }}
           >
@@ -2235,7 +2317,7 @@ export default function Home() {
           >
             <div
               style={{
-                fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+                fontSize: PANEL_FS,
                 opacity: 0.85,
                 marginBottom: 4,
               }}
@@ -2245,7 +2327,7 @@ export default function Home() {
             <div
               className="osu-display-font"
               style={{
-                fontSize: "clamp(0.55rem, 2.2vw, 0.8rem)",
+                fontSize: PANEL_H2,
                 color: "#1D9E75",
                 fontWeight: 800,
               }}
@@ -2255,30 +2337,29 @@ export default function Home() {
             <p
               style={{
                 margin: "8px 0 0",
-                fontSize: "clamp(0.32rem, 1.25vw, 0.42rem)",
+                fontSize: PANEL_FS,
                 lineHeight: 1.45,
                 opacity: 0.75,
               }}
             >
-              Cash plus recorded purchase prices of everything you own (not
-              quick-sell value).
+              Cash plus face value of physical inventory (food and drinks are
+              not counted).
             </p>
           </div>
-          {ownedAssets.length === 0 ? (
+          {displayedAssets.length === 0 ? (
             <p
               style={{
                 margin: 0,
-                fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
+                fontSize: PANEL_FS,
                 opacity: 0.75,
               }}
             >
               Nothing in your inventory yet — hit the Shop to buy gear.
             </p>
           ) : (
-            ownedAssets.map((asset) => {
-              const def = SHOP.find((s) => s.id === asset.shopItemId);
-              const sellable = Boolean(def && shopItemAllowsQuickSell(def));
-              const sellPrice = computeQuickSellPayout(asset.purchasePrice);
+            displayedAssets.map((asset) => {
+              const sellable = assetRowAllowsQuickSell(asset);
+              const sellPrice = computeAssetQuickSellPayout(asset);
               return (
                 <div
                   key={asset.instanceId}
@@ -2293,7 +2374,7 @@ export default function Home() {
                   <div
                     className="osu-display-font"
                     style={{
-                      fontSize: "clamp(0.48rem, 2vw, 0.62rem)",
+                      fontSize: PANEL_FS,
                       color: "#FFFFFF",
                       marginBottom: 6,
                     }}
@@ -2302,7 +2383,7 @@ export default function Home() {
                   </div>
                   <div
                     style={{
-                      fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+                      fontSize: PANEL_FS,
                       marginBottom: 8,
                       color: "#A3A3A3",
                     }}
@@ -2322,7 +2403,7 @@ export default function Home() {
                         background: "#D73F09",
                         color: "#FFFFFF",
                         cursor: "pointer",
-                        fontSize: "clamp(0.4rem, 1.6vw, 0.52rem)",
+                        fontSize: PANEL_FS,
                       }}
                     >
                       Quick Sell (${sellPrice.toLocaleString()})
@@ -2330,7 +2411,7 @@ export default function Home() {
                   ) : (
                     <span
                       style={{
-                        fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+                        fontSize: PANEL_FS,
                         fontStyle: "italic",
                         opacity: 0.75,
                       }}
@@ -2377,7 +2458,7 @@ export default function Home() {
             border: "none",
             borderBottom: "1px solid rgba(255, 255, 255, 0.12)",
             cursor: "pointer",
-            fontSize: "clamp(0.45rem, 2vw, 0.62rem)",
+            fontSize: PANEL_FS,
           }}
         >
           ◀ Close
@@ -2389,7 +2470,7 @@ export default function Home() {
             margin: 0,
             padding: "10px 14px 8px",
             color: "#D73F09",
-            fontSize: "clamp(0.5rem, 2vw, 0.68rem)",
+            fontSize: PANEL_H2,
           }}
         >
           Your OSU Story
@@ -2400,6 +2481,8 @@ export default function Home() {
             overflowY: "auto",
             padding: "0 14px 20px",
             boxSizing: "border-box",
+            fontSize: PANEL_FS,
+            lineHeight: 1.45,
           }}
         >
           {weekHistory.length === 0 ? (
@@ -2408,7 +2491,7 @@ export default function Home() {
                 margin: "48px 0 0",
                 textAlign: "center",
                 color: "rgba(255, 255, 255, 0.45)",
-                fontSize: "clamp(0.4rem, 1.6vw, 0.52rem)",
+                fontSize: PANEL_FS,
                 lineHeight: 1.5,
               }}
             >
@@ -2424,7 +2507,7 @@ export default function Home() {
                     style={{
                       margin: "0 0 6px",
                       color: "#FFFFFF",
-                      fontSize: "clamp(0.42rem, 1.7vw, 0.55rem)",
+                      fontSize: PANEL_H2,
                     }}
                   >
                     {yearStoryHeading(y)}
@@ -2448,7 +2531,7 @@ export default function Home() {
                           style={{
                             marginBottom: 8,
                             lineHeight: 1.35,
-                            fontSize: "clamp(0.32rem, 1.25vw, 0.44rem)",
+                            fontSize: PANEL_FS,
                             color: "rgba(255, 255, 255, 0.88)",
                           }}
                         >
@@ -2456,7 +2539,7 @@ export default function Home() {
                             className="osu-display-font"
                             style={{
                               color: "#D73F09",
-                              fontSize: "clamp(0.3rem, 1.15vw, 0.4rem)",
+                              fontSize: PANEL_FS,
                               marginBottom: 0,
                             }}
                           >
@@ -2487,7 +2570,7 @@ export default function Home() {
                                 color: "#D73F09",
                                 margin: 0,
                                 padding: 0,
-                                fontSize: "clamp(0.3rem, 1.15vw, 0.4rem)",
+                                fontSize: PANEL_FS,
                               }}
                             >
                               {evLine}
@@ -2523,6 +2606,57 @@ export default function Home() {
           )}
         </div>
       </aside>
+
+      {gamePhase === "picking" && !isGeneratingStory ? (
+        <div
+          style={{
+            position: "fixed",
+            right: 20,
+            bottom: 20,
+            zIndex: 10050,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <button
+            type="button"
+            aria-label="Next week"
+            disabled={spentEpThisWeek < 1}
+            onClick={() => handleActivityConfirm()}
+            style={{
+              width: 60,
+              height: 60,
+              borderRadius: "50%",
+              border: "none",
+              background: spentEpThisWeek < 1 ? "#8B5A45" : "#CC4500",
+              color: "#FFFFFF",
+              fontSize: 28,
+              lineHeight: 1,
+              cursor: spentEpThisWeek < 1 ? "not-allowed" : "pointer",
+              boxShadow: "0 6px 22px rgba(0, 0, 0, 0.5)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            →
+          </button>
+          <span
+            className="osu-display-font"
+            style={{
+              color: "#FFFFFF",
+              fontSize: PANEL_FS,
+              textAlign: "center",
+              textShadow: "0 1px 6px rgba(0,0,0,0.9)",
+              maxWidth: 120,
+            }}
+          >
+            Next Week
+          </span>
+        </div>
+      ) : null}
 
       <div
         className="osu-display-font osu-display-font--micro"

@@ -58,6 +58,8 @@ export type ActivityPickerProps = {
   onConfirm: () => void;
   /** `page`: full card with EP header. `panel`: slide-out column — no EP header, scrollable list + pinned End Week. */
   variant?: "page" | "panel";
+  /** When true, do not render the End Week footer (e.g. global FAB handles confirm). */
+  hideFooter?: boolean;
 };
 
 export default function ActivityPicker({
@@ -70,6 +72,7 @@ export default function ActivityPicker({
   onRemove,
   onConfirm,
   variant = "page",
+  hideFooter = false,
 }: ActivityPickerProps) {
   const isPanel = variant === "panel";
   const spentEp = weekSelections.reduce((sum, id) => {
@@ -319,7 +322,7 @@ export default function ActivityPicker({
         <div style={scrollAreaPanel}>
           <div style={gridStylePanel}>{cards}</div>
         </div>
-        {footer}
+        {hideFooter ? null : footer}
       </div>
     );
   }
