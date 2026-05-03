@@ -19,11 +19,7 @@ import {
   checkGameOver,
   getEnding,
 } from "./lib/gameLogic.js";
-import {
-  FALLBACK_CUTSCENE,
-  generateCutscene,
-  generateCustomEnding,
-} from "./lib/aiCutscene.js";
+import { generateCutscene, generateCustomEnding } from "./lib/aiCutscene.js";
 import { getScenarioForWeek } from "./lib/scenarios.js";
 import StartScreen from "./components/StartScreen";
 import StatBars from "./components/StatBars";
@@ -95,6 +91,7 @@ const WEEKLY_EP_MAX = 5;
 
 const ACTIVITY_SHORT_LABEL: Record<string, string> = {
   "study-valley-library": "Study",
+  "class-cordley-hall": "Class",
   "gym-dixon-rec": "Gym",
   "frat-party-26th": "Party",
   "football-reser": "Football",
@@ -279,6 +276,7 @@ export default function Home() {
   const [weekSelections, setWeekSelections] = useState<string[]>([]);
   const [gamePhase, setGamePhase] = useState<GamePhase>("picking");
   const [isGeneratingStory, setIsGeneratingStory] = useState(false);
+  const [storyText, setStoryText] = useState("");
   const [sceneImageFilename, setSceneImageFilename] = useState("");
   const [cutsceneExtraEvent, setCutsceneExtraEvent] =
     useState<CutsceneExtraEvent | null>(null);
@@ -310,10 +308,6 @@ export default function Home() {
   const [weeklyPurchases, setWeeklyPurchases] = useState<string[]>([]);
   const [weeklyShopSpend, setWeeklyShopSpend] = useState(0);
   const [summaryPanelOpen, setSummaryPanelOpen] = useState(false);
-  const [cutsceneWeekSelections, setCutsceneWeekSelections] = useState<
-    string[]
-  >([]);
-  const [storyText, setStoryText] = useState("");
   const [toast, setToast] = useState({ message: "", visible: false });
   const toastDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -349,6 +343,7 @@ export default function Home() {
           setWeekSelections([]);
           setGamePhase("picking");
           setIsGeneratingStory(false);
+          setStoryText("");
           setSceneImageFilename("");
           setCutsceneExtraEvent(null);
           setCutsceneStatsBefore(null);
@@ -372,8 +367,6 @@ export default function Home() {
           setWeeklyPurchases([]);
           setWeeklyShopSpend(0);
           setSummaryPanelOpen(false);
-          setCutsceneWeekSelections([]);
-          setStoryText("");
           if (toastDismissTimerRef.current) {
             clearTimeout(toastDismissTimerRef.current);
             toastDismissTimerRef.current = null;
@@ -541,39 +534,17 @@ export default function Home() {
           jobLine,
         }),
       });
-      const data = (await res.json()) as {
-        storyText?: string;
-        apiScenario?: ScenarioForPopup | null;
-        error?: string;
-      };
-      console.log("[cutscene] /api/cutscene response:", {
-        ok: res.ok,
-        status: res.status,
-        storyPreview: (data.storyText ?? "").slice(0, 120),
-        storyLength: (data.storyText ?? "").length,
-        hasApiScenario: Boolean(data.apiScenario),
-        error: data.error,
-      });
       if (res.ok) {
+        const data = (await res.json()) as {
+          storyText?: string;
+          apiScenario?: ScenarioForPopup | null;
+        };
         story = data.storyText ?? "";
         apiScenario = data.apiScenario ?? null;
       } else {
-        throw new Error(data.error ?? "cutscene api");
+        throw new Error("cutscene api");
       }
-    } catch (err) {
-      console.warn("[cutscene] /api/cutscene fetch failed:", err);
-      story = "";
-      apiScenario = null;
-    }
-
-    const storyTrimmed = (story || "").trim();
-    if (
-      !storyTrimmed ||
-      storyTrimmed === FALLBACK_CUTSCENE.trim()
-    ) {
-      console.log(
-        "[cutscene] Invoking client generateCutscene (empty or server fallback text)",
-      );
+    } catch {
       story = await generateCutscene(
         name,
         year,
@@ -584,11 +555,7 @@ export default function Home() {
         moneyForNarrative,
         jobLine,
       );
-      console.log("[cutscene] generateCutscene result preview:", {
-        preview: story.slice(0, 120),
-        length: story.length,
-        isStillFallback: story.trim() === FALLBACK_CUTSCENE.trim(),
-      });
+      apiScenario = null;
     }
 
     return {
@@ -636,78 +603,68 @@ export default function Home() {
     setPendingApiScenario(null);
 
     void (async () => {
-      try {
-        const {
-          finalStats,
-          story,
-          sceneFile,
-          extra,
-          apiScenario,
-          moneyNetChange,
-          specialEventHist,
-          randomEventHist,
-        } = await resolveWeekEnd(
-          statsBefore,
-          selections,
-          year,
-          week,
-          baseline,
-          name,
-          usedScenarioIds,
-          moneySnap,
-          jobSnap,
-          perksSnap,
-          riskSnap,
-        );
+      const {
+        finalStats,
+        story,
+        sceneFile,
+        extra,
+        apiScenario,
+        moneyNetChange,
+        specialEventHist,
+        randomEventHist,
+      } = await resolveWeekEnd(
+        statsBefore,
+        selections,
+        year,
+        week,
+        baseline,
+        name,
+        usedScenarioIds,
+        moneySnap,
+        jobSnap,
+        perksSnap,
+        riskSnap,
+      );
 
-        const activitiesChosen = selections.map((id) => {
-          const a = ACTIVITIES.find((ac) => ac.id === id);
-          return {
-            name: a?.name ?? id,
-            location: a?.location ?? "",
-          };
-        });
-        const jobObj = jobSnap ? JOBS.find((j) => j.id === jobSnap) : null;
-        const weekEntry: WeekHistoryEntry = {
-          year,
-          week,
-          activitiesChosen,
-          jobWorked: jobObj?.name ?? null,
-          moneyEarned: jobObj?.weeklyPay ?? 0,
-          moneySpent: weeklyShopSpendSnap,
-          shopItemsBought: [...weeklyPurchasesSnap],
-          randomEvent: randomEventHist,
-          specialEvent: specialEventHist,
-          statsBefore,
-          statsAfter: finalStats,
+      const activitiesChosen = selections.map((id) => {
+        const a = ACTIVITIES.find((ac) => ac.id === id);
+        return {
+          name: a?.name ?? id,
+          location: a?.location ?? "",
         };
-        setWeekHistory((h) => [...h, weekEntry]);
+      });
+      const jobObj = jobSnap ? JOBS.find((j) => j.id === jobSnap) : null;
+      const weekEntry: WeekHistoryEntry = {
+        year,
+        week,
+        activitiesChosen,
+        jobWorked: jobObj?.name ?? null,
+        moneyEarned: jobObj?.weeklyPay ?? 0,
+        moneySpent: weeklyShopSpendSnap,
+        shopItemsBought: [...weeklyPurchasesSnap],
+        randomEvent: randomEventHist,
+        specialEvent: specialEventHist,
+        statsBefore,
+        statsAfter: finalStats,
+      };
+      setWeekHistory((h) => [...h, weekEntry]);
 
-        setCutsceneWeekSelections([...selections]);
-        setStoryText(story);
-        setPendingApiScenario(apiScenario);
-        setSceneImageFilename(sceneFile);
-        setCutsceneExtraEvent(extra);
-        setCutsceneStatsBefore(statsBefore);
-        setCutsceneStatsAfter(finalStats);
-        setStats(finalStats);
-        setMoney((m) => clampMoney(m + moneyNetChange));
+      setPendingApiScenario(apiScenario);
+      setStoryText(story);
+      setSceneImageFilename(sceneFile);
+      setCutsceneExtraEvent(extra);
+      setCutsceneStatsBefore(statsBefore);
+      setCutsceneStatsAfter(finalStats);
+      setStats(finalStats);
+      setMoney((m) => clampMoney(m + moneyNetChange));
+      setIsGeneratingStory(false);
 
-        const over = checkGameOver(finalStats);
-        if (over.isOver) {
-          setGameOverReason(over.reason);
-          setGamePhase("gameover");
-        } else {
-          setGamePhase("cutscene");
-        }
-      } catch (err) {
-        console.error("[week] End week failed:", err);
-        window.alert(
-          "Something went wrong while simming the week. If the loading screen never ends, check the browser console. AI cutscenes need ANTHROPIC_API_KEY in `.env.local` at the repo root; restart `npm run dev` after adding it.",
-        );
-        setGamePhase("picking");
-      } finally {
-        setIsGeneratingStory(false);
+      const over = checkGameOver(finalStats);
+      if (over.isOver) {
+        setGameOverReason(over.reason);
+        setGamePhase("gameover");
+      } else {
+        setGamePhase("cutscene");
       }
     })();
   }
@@ -943,14 +900,13 @@ export default function Home() {
     return (
       <CutsceneScreen
         isLoading={isGeneratingStory}
+        storyText={storyText}
         sceneImage={sceneImageFilename}
         week={currentWeek}
         year={currentYear}
         statsBefore={before}
         statsAfter={after}
         extraEvent={cutsceneExtraEvent}
-        weekSelections={cutsceneWeekSelections}
-        storyText={storyText}
         onContinue={() => {
           void handleCutsceneContinue();
         }}
@@ -995,16 +951,12 @@ export default function Home() {
           position: "fixed",
           top: 0,
           left: 0,
-          width: "100vw",
-          height: "100vh",
+          width: "100%",
+          height: "100%",
           objectFit: "cover",
           zIndex: 0,
         }}
       />
-      <div className="osu-dorm-rain-window" aria-hidden>
-        <div className="osu-dorm-rain-layer osu-dorm-rain-layer--a" />
-        <div className="osu-dorm-rain-layer osu-dorm-rain-layer--b" />
-      </div>
       <div
         style={{
           position: "fixed",
@@ -1013,7 +965,7 @@ export default function Home() {
           width: "100%",
           height: "100%",
           background: "rgba(0, 0, 0, 0.45)",
-          zIndex: 2,
+          zIndex: 1,
           pointerEvents: "none",
         }}
       />
@@ -1456,7 +1408,7 @@ export default function Home() {
             border: "none",
             borderBottom: "1px solid rgba(255, 255, 255, 0.12)",
             cursor: "pointer",
-            fontSize: 14,
+            fontSize: "clamp(0.45rem, 2vw, 0.62rem)",
           }}
         >
           ◀ Close
@@ -1474,7 +1426,7 @@ export default function Home() {
             className="osu-display-font"
             style={{
               margin: "0 0 12px",
-              fontSize: 16,
+              fontSize: "clamp(0.55rem, 2.2vw, 0.75rem)",
               color: "#FFFFFF",
             }}
           >
@@ -1508,7 +1460,7 @@ export default function Home() {
                   <div
                     className="osu-display-font"
                     style={{
-                      fontSize: 14,
+                      fontSize: "clamp(0.48rem, 2vw, 0.62rem)",
                       color: "#FFFFFF",
                     }}
                   >
@@ -1519,7 +1471,7 @@ export default function Home() {
                       className="osu-display-font osu-display-font--micro"
                       style={{
                         flexShrink: 0,
-                        fontSize: 12,
+                        fontSize: "clamp(0.34rem, 1.3vw, 0.44rem)",
                         padding: "2px 8px",
                         borderRadius: 999,
                         background: "rgba(29, 158, 117, 0.25)",
@@ -1534,7 +1486,7 @@ export default function Home() {
                 <p
                   style={{
                     margin: "0 0 8px",
-                    fontSize: 12,
+                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
                     lineHeight: 1.45,
                     opacity: 0.9,
                   }}
@@ -1543,7 +1495,7 @@ export default function Home() {
                 </p>
                 <div
                   style={{
-                    fontSize: 12,
+                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
                     marginBottom: 6,
                     color: "#1D9E75",
                     fontWeight: 700,
@@ -1553,7 +1505,7 @@ export default function Home() {
                 </div>
                 <div
                   style={{
-                    fontSize: 12,
+                    fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
                     marginBottom: 8,
                     opacity: 0.88,
                   }}
@@ -1579,7 +1531,7 @@ export default function Home() {
                     background: !canBuy ? "rgba(120,120,120,0.35)" : "#1D9E75",
                     color: "#FFFFFF",
                     cursor: !canBuy ? "not-allowed" : "pointer",
-                    fontSize: 12,
+                    fontSize: "clamp(0.4rem, 1.6vw, 0.52rem)",
                   }}
                 >
                   {ownedOngoing ? "Owned" : canAfford ? "Buy" : "Cannot afford"}
@@ -1592,7 +1544,7 @@ export default function Home() {
             className="osu-display-font"
             style={{
               margin: "20px 0 10px",
-              fontSize: 14,
+              fontSize: "clamp(0.5rem, 2vw, 0.65rem)",
               color: "#FCA5A5",
             }}
           >
@@ -1601,7 +1553,7 @@ export default function Home() {
           <p
             style={{
               margin: "0 0 12px",
-              fontSize: 12,
+              fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
               lineHeight: 1.45,
               color: "#F87171",
               border: "1px solid rgba(248, 113, 113, 0.45)",
@@ -1635,7 +1587,7 @@ export default function Home() {
                 <div
                   className="osu-display-font"
                   style={{
-                    fontSize: 14,
+                    fontSize: "clamp(0.48rem, 2vw, 0.62rem)",
                     color: "#FECACA",
                     marginBottom: 6,
                   }}
@@ -1645,7 +1597,7 @@ export default function Home() {
                 <p
                   style={{
                     margin: "0 0 8px",
-                    fontSize: 12,
+                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
                     lineHeight: 1.45,
                     color: "#FEE2E2",
                   }}
@@ -1655,7 +1607,7 @@ export default function Home() {
                 <p
                   style={{
                     margin: "0 0 8px",
-                    fontSize: 12,
+                    fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
                     lineHeight: 1.45,
                     color: "#FCA5A5",
                   }}
@@ -1666,7 +1618,7 @@ export default function Home() {
                 </p>
                 <div
                   style={{
-                    fontSize: 12,
+                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
                     marginBottom: 6,
                     color: "#F87171",
                     fontWeight: 700,
@@ -1676,7 +1628,7 @@ export default function Home() {
                 </div>
                 <div
                   style={{
-                    fontSize: 12,
+                    fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
                     marginBottom: 8,
                     opacity: 0.9,
                     color: "#FEE2E2",
@@ -1697,7 +1649,7 @@ export default function Home() {
                     background: !canAfford ? "rgba(120,120,120,0.35)" : "#B91C1C",
                     color: "#FFFFFF",
                     cursor: !canAfford ? "not-allowed" : "pointer",
-                    fontSize: 12,
+                    fontSize: "clamp(0.4rem, 1.6vw, 0.52rem)",
                   }}
                 >
                   {canAfford ? "Buy (confirm risk)" : "Cannot afford"}
