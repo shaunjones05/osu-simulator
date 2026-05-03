@@ -141,3 +141,16 @@ body {
   background-color: #2a2a2a;
   color: #666666;
 }
+
+/* HUD: Career / Activities / Shop / Summary — wide stack */
+.osu-hud-panel-btn {
+  transition:
+    filter 0.15s ease,
+    transform 0.1s ease;
+}
+.osu-hud-panel-btn:hover {
+  filter: brightness(1.15);
+}
+.osu-hud-panel-btn:active {
+  transform: scale(0.97);
+}

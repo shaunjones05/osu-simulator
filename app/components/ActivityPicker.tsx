@@ -50,6 +50,7 @@ export type ActivityPickerProps = {
   energyRemaining: number;
   /** Max EP per week (fixed at 5 in OSU Simulator v2). */
   totalEnergy: number;
+  /** Academic year (1–4) for `minYear` activity locks. */
   currentYear: number;
   weekSelections: string[];
   onAdd: (activityId: string) => void;
@@ -235,7 +236,6 @@ export default function ActivityPicker({
     const cardClass = [
       "osu-activity-card",
       selected ? "osu-activity-card--selected" : "",
-      locked ? "osu-activity-card--locked" : "",
     ]
       .filter(Boolean)
       .join(" ");
@@ -272,7 +272,7 @@ export default function ActivityPicker({
         )}
         <div style={epLineStyle}>{activity.epCost} EP each</div>
         <div className="osu-activity-actions">
-          {count > 0 && !locked ? (
+          {count > 0 ? (
             <button
               type="button"
               className="osu-activity-btn osu-activity-btn--minus"

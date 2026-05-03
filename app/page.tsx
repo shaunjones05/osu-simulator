@@ -50,6 +50,22 @@ type ActivePerk = {
   weeklyBonus: Record<string, number> | null;
 };
 
+type WeekHistoryEventSnippet = { title: string; description: string };
+
+type WeekHistoryEntry = {
+  year: number;
+  week: number;
+  activitiesChosen: { name: string; location: string }[];
+  jobWorked: string | null;
+  moneyEarned: number;
+  moneySpent: number;
+  shopItemsBought: string[];
+  randomEvent: WeekHistoryEventSnippet | null;
+  specialEvent: WeekHistoryEventSnippet | null;
+  statsBefore: WeekStats;
+  statsAfter: WeekStats;
+};
+
 function clampMoney(n: number): number {
   const x = Math.round(Number(n));
   if (Number.isNaN(x)) return 0;
@@ -72,6 +88,90 @@ function formatStatDelta(delta: Record<string, number> | null | undefined) {
 
 /** Fixed max EP per week (matches ENERGY_BY_YEAR in v2). */
 const WEEKLY_EP_MAX = 5;
+
+const ACTIVITY_SHORT_LABEL: Record<string, string> = {
+  "study-valley-library": "Study",
+  "class-cordley-hall": "Class",
+  "gym-dixon-rec": "Gym",
+  "frat-party-26th": "Party",
+  "football-reser": "Football",
+  "eat-arnold-dining": "Dining",
+  "downward-dog-tiki-tuesday": "Tiki",
+  "rivas-taco-shop": "Rivas",
+  "sleep-in": "Sleep",
+  "club-mu": "Club",
+  "study-group-kelley": "Study group",
+};
+
+function activityShortLabel(activityId: string): string {
+  if (ACTIVITY_SHORT_LABEL[activityId]) return ACTIVITY_SHORT_LABEL[activityId];
+  const a = ACTIVITIES.find((ac) => ac.id === activityId);
+  if (!a) return activityId;
+  return a.name.split(/\s+/)[0] ?? activityId;
+}
+
+function formatActivitiesSummaryLine(selections: string[]): string {
+  const counts = new Map<string, number>();
+  for (const id of selections) {
+    const short = activityShortLabel(id);
+    counts.set(short, (counts.get(short) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([label, n]) => (n > 1 ? `${label} x${n}` : label))
+    .join(", ");
+}
+
+const STAT_LABEL_EN: Record<(typeof STAT_KEYS)[number], string> = {
+  gpa: "GPA",
+  health: "Health",
+  happiness: "Happiness",
+  social: "Social",
+};
+
+function formatStatChangeLine(before: WeekStats, after: WeekStats): string {
+  const parts: string[] = [];
+  for (const k of STAT_KEYS) {
+    const d = (after[k] ?? 0) - (before[k] ?? 0);
+    if (d !== 0) {
+      parts.push(
+        `${d > 0 ? "+" : ""}${d} ${STAT_LABEL_EN[k]}`,
+      );
+    }
+  }
+  return parts.join("  ") || "—";
+}
+
+function yearStoryHeading(year: number): string {
+  const tier =
+    year === 1
+      ? "Freshman"
+      : year === 2
+        ? "Sophomore"
+        : year === 3
+          ? "Junior"
+          : "Senior";
+  return `Year ${year} — ${tier}`;
+}
+
+function historyActivitiesSummaryLine(
+  chosen: { name: string; location: string }[],
+): string {
+  const ids = chosen.map((c) => {
+    const a = ACTIVITIES.find(
+      (ac) => ac.name === c.name && ac.location === c.location,
+    );
+    return a?.id ?? c.name;
+  });
+  return formatActivitiesSummaryLine(ids);
+}
+
+function historyEventTitlesLine(entry: WeekHistoryEntry): string | null {
+  const parts: string[] = [];
+  if (entry.specialEvent?.title) parts.push(entry.specialEvent.title);
+  if (entry.randomEvent?.title) parts.push(entry.randomEvent.title);
+  if (parts.length === 0) return null;
+  return parts.join(" · ");
+}
 
 function scenarioUsedId(scenario: { id: string }, year: number): string {
   if (scenario.id === "halloween_party") return `halloween_party:${year}`;
@@ -195,6 +295,10 @@ export default function Home() {
   const [activeScenario, setActiveScenario] = useState<ScenarioForPopup | null>(
     null,
   );
+  const [weekHistory, setWeekHistory] = useState<WeekHistoryEntry[]>([]);
+  const [weeklyPurchases, setWeeklyPurchases] = useState<string[]>([]);
+  const [weeklyShopSpend, setWeeklyShopSpend] = useState(0);
+  const [summaryPanelOpen, setSummaryPanelOpen] = useState(false);
 
   if (!gameStarted) {
     return (
@@ -230,6 +334,10 @@ export default function Home() {
           setUsedScenarioIds([]);
           setPendingApiScenario(null);
           setActiveScenario(null);
+          setWeekHistory([]);
+          setWeeklyPurchases([]);
+          setWeeklyShopSpend(0);
+          setSummaryPanelOpen(false);
           setGameStarted(true);
         }}
       />
@@ -285,7 +393,12 @@ export default function Home() {
     );
 
     const special = getSpecialEvent(year, week);
+    let specialEventHist: WeekHistoryEventSnippet | null = null;
     if (special) {
+      specialEventHist = {
+        title: special.title,
+        description: special.description,
+      };
       const rawEffect =
         typeof special.effect === "function"
           ? special.effect(s)
@@ -294,6 +407,7 @@ export default function Home() {
     }
 
     let extra: CutsceneExtraEvent | null = null;
+    let randomEventHist: WeekHistoryEventSnippet | null = null;
     const rand = getRandEvent();
     if (rand) {
       if ("isBet" in rand && rand.isBet) {
@@ -302,9 +416,17 @@ export default function Home() {
           title: rand.title,
           description: `${rand.description}\n\n${bet.message}`,
         };
+        randomEventHist = {
+          title: rand.title,
+          description: `${rand.description}\n\n${bet.message}`,
+        };
         s = normalizeWeekStats(applyStatDelta(s, bet.effect));
       } else {
         extra = { title: rand.title, description: rand.description };
+        randomEventHist = {
+          title: rand.title,
+          description: rand.description,
+        };
         s = normalizeWeekStats(applyStatDelta(s, rand.effect));
       }
     }
@@ -326,6 +448,18 @@ export default function Home() {
         title: arrest.title,
         description: arrest.description,
       };
+      const arrestHist: WeekHistoryEventSnippet = {
+        title: arrest.title,
+        description: arrest.description,
+      };
+      if (randomEventHist) {
+        randomEventHist = {
+          title: "This week at OSU",
+          description: `${randomEventHist.title}: ${randomEventHist.description}\n\n— ${arrestHist.title}: ${arrestHist.description}`,
+        };
+      } else {
+        randomEventHist = arrestHist;
+      }
       if (extra) {
         extra = {
           title: "This week at OSU",
@@ -393,6 +527,8 @@ export default function Home() {
       extra,
       apiScenario,
       moneyNetChange,
+      specialEventHist,
+      randomEventHist,
     };
   }
 
@@ -418,29 +554,62 @@ export default function Home() {
     const jobSnap = activeJobId;
     const perksSnap = [...activePerks];
     const riskSnap = fakeidRisk;
+    const weeklyPurchasesSnap = [...weeklyPurchases];
+    const weeklyShopSpendSnap = weeklyShopSpend;
 
     setIsGeneratingStory(true);
     setActivitiesPanelOpen(false);
     setCareerPanelOpen(false);
     setShopPanelOpen(false);
+    setSummaryPanelOpen(false);
     setPendingApiScenario(null);
-    setGamePhase("cutscene");
 
     void (async () => {
-      const { finalStats, story, sceneFile, extra, apiScenario, moneyNetChange } =
-        await resolveWeekEnd(
-          statsBefore,
-          selections,
-          year,
-          week,
-          baseline,
-          name,
-          usedScenarioIds,
-          moneySnap,
-          jobSnap,
-          perksSnap,
-          riskSnap,
-        );
+      const {
+        finalStats,
+        story,
+        sceneFile,
+        extra,
+        apiScenario,
+        moneyNetChange,
+        specialEventHist,
+        randomEventHist,
+      } = await resolveWeekEnd(
+        statsBefore,
+        selections,
+        year,
+        week,
+        baseline,
+        name,
+        usedScenarioIds,
+        moneySnap,
+        jobSnap,
+        perksSnap,
+        riskSnap,
+      );
+
+      const activitiesChosen = selections.map((id) => {
+        const a = ACTIVITIES.find((ac) => ac.id === id);
+        return {
+          name: a?.name ?? id,
+          location: a?.location ?? "",
+        };
+      });
+      const jobObj = jobSnap ? JOBS.find((j) => j.id === jobSnap) : null;
+      const weekEntry: WeekHistoryEntry = {
+        year,
+        week,
+        activitiesChosen,
+        jobWorked: jobObj?.name ?? null,
+        moneyEarned: jobObj?.weeklyPay ?? 0,
+        moneySpent: weeklyShopSpendSnap,
+        shopItemsBought: [...weeklyPurchasesSnap],
+        randomEvent: randomEventHist,
+        specialEvent: specialEventHist,
+        statsBefore,
+        statsAfter: finalStats,
+      };
+      setWeekHistory((h) => [...h, weekEntry]);
 
       setPendingApiScenario(apiScenario);
       setStoryText(story);
@@ -456,6 +625,8 @@ export default function Home() {
       if (over.isOver) {
         setGameOverReason(over.reason);
         setGamePhase("gameover");
+      } else {
+        setGamePhase("cutscene");
       }
     })();
   }
@@ -467,6 +638,9 @@ export default function Home() {
       setActivitiesPanelOpen(false);
       setCareerPanelOpen(false);
       setShopPanelOpen(false);
+      setSummaryPanelOpen(false);
+      setWeeklyPurchases([]);
+      setWeeklyShopSpend(0);
       setGamePhase("picking");
       setEnergyRemaining(WEEKLY_EP_MAX);
       return;
@@ -480,6 +654,9 @@ export default function Home() {
       setActivitiesPanelOpen(false);
       setCareerPanelOpen(false);
       setShopPanelOpen(false);
+      setSummaryPanelOpen(false);
+      setWeeklyPurchases([]);
+      setWeeklyShopSpend(0);
       setGamePhase("picking");
       setEnergyRemaining(WEEKLY_EP_MAX);
       return;
@@ -544,23 +721,35 @@ export default function Home() {
   function openActivitiesPanel() {
     setCareerPanelOpen(false);
     setShopPanelOpen(false);
+    setSummaryPanelOpen(false);
     setActivitiesPanelOpen(true);
   }
 
   function openCareerPanel() {
     setActivitiesPanelOpen(false);
     setShopPanelOpen(false);
+    setSummaryPanelOpen(false);
     setCareerPanelOpen(true);
   }
 
   function openShopPanel() {
     setActivitiesPanelOpen(false);
     setCareerPanelOpen(false);
+    setSummaryPanelOpen(false);
     setShopPanelOpen(true);
+  }
+
+  function openSummaryPanel() {
+    setActivitiesPanelOpen(false);
+    setCareerPanelOpen(false);
+    setShopPanelOpen(false);
+    setSummaryPanelOpen(true);
   }
 
   function completeShopPurchase(item: (typeof SHOP)[number]) {
     setMoney((m) => clampMoney(m - item.cost));
+    setWeeklyShopSpend((n) => n + item.cost);
+    setWeeklyPurchases((prev) => [...prev, item.name]);
     setStats((st) => normalizeWeekStats(applyStatDelta(st, item.effect)));
     if (item.isFakeId && item.fakeidRisk) {
       setFakeidRisk(item.fakeidRisk);
@@ -610,9 +799,6 @@ export default function Home() {
     setFakeIdConfirmItemId(null);
   }
 
-  const activeJob = activeJobId
-    ? JOBS.find((j) => j.id === activeJobId)
-    : null;
   const shopMainItems = SHOP.filter((i) => i.category !== "underground");
   const shopUnderground = SHOP.filter((i) => i.category === "underground");
 
@@ -662,6 +848,20 @@ export default function Home() {
         )
       : undefined;
 
+  const spentEpThisWeek = WEEKLY_EP_MAX - energyRemaining;
+  const hudBtn: React.CSSProperties = {
+    width: 180,
+    padding: "12px 16px",
+    background: "#D73F09",
+    color: "#FFFFFF",
+    border: "none",
+    borderRadius: 10,
+    textAlign: "center",
+    cursor: "pointer",
+    marginBottom: 8,
+    position: "relative",
+  };
+
   return (
     <>
       {/* eslint-disable-next-line @next/next/no-img-element -- full-viewport HUD background */}
@@ -691,11 +891,85 @@ export default function Home() {
         }}
       />
 
+      {isGeneratingStory && gamePhase === "picking" ? (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 50,
+            background: "rgba(0, 0, 0, 0.72)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            pointerEvents: "auto",
+          }}
+        >
+          <p
+            className="osu-display-font osu-display-font--micro osu-simming-pulse"
+            style={{ color: "#FFFFFF", textAlign: "center", padding: "0 1rem" }}
+          >
+            Simming to next week…
+          </p>
+        </div>
+      ) : null}
+
       <div
         style={{
           position: "fixed",
           top: 16,
-          left: 16,
+          right: 16,
+          zIndex: 10,
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          background: "rgba(26, 26, 26, 0.85)",
+          borderRadius: 20,
+          padding: "10px 16px",
+          boxSizing: "border-box",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: "1.2rem", lineHeight: 1 }} aria-hidden>
+            ⚡
+          </span>
+          <span
+            style={{
+              fontSize: "1.65rem",
+              fontWeight: 800,
+              color: epHudColor,
+              fontVariantNumeric: "tabular-nums",
+              transition: "color 0.25s ease",
+            }}
+          >
+            {energyRemaining}
+          </span>
+        </div>
+        <div
+          style={{
+            width: 1,
+            height: 26,
+            background: "rgba(255, 255, 255, 0.2)",
+            flexShrink: 0,
+          }}
+          aria-hidden
+        />
+        <span
+          style={{
+            fontSize: "1.35rem",
+            fontWeight: 800,
+            color: "#1D9E75",
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          ${money}
+        </span>
+      </div>
+
+      <div
+        style={{
+          position: "fixed",
+          top: 70,
+          right: 16,
           zIndex: 10,
           width: 220,
           background: "rgba(26, 26, 26, 0.85)",
@@ -716,209 +990,86 @@ export default function Home() {
       <div
         style={{
           position: "fixed",
-          top: 16,
+          top: 300,
           right: 16,
-          zIndex: 10,
+          zIndex: 20,
           display: "flex",
           flexDirection: "column",
           alignItems: "flex-end",
-          gap: 8,
-          maxWidth: "min(92vw, 320px)",
-          boxSizing: "border-box",
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            justifyContent: "flex-end",
-            gap: 8,
-          }}
+        <button
+          type="button"
+          className="osu-display-font osu-display-font--micro osu-hud-panel-btn"
+          onClick={openCareerPanel}
+          style={hudBtn}
         >
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              background: "rgba(26, 26, 26, 0.85)",
-              borderRadius: 20,
-              padding: "8px 16px",
-              boxSizing: "border-box",
-            }}
-          >
-            <span style={{ fontSize: "1.25rem", lineHeight: 1 }} aria-hidden>
-              ⚡
-            </span>
+          {activeJobId ? (
             <span
+              aria-hidden
               style={{
-                fontSize: "1.75rem",
+                position: "absolute",
+                top: 8,
+                right: 10,
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: "#1D9E75",
+                boxShadow: "0 0 0 2px rgba(26,26,26,0.9)",
+              }}
+            />
+          ) : null}
+          Career
+        </button>
+        <button
+          type="button"
+          className="osu-display-font osu-display-font--micro osu-hud-panel-btn"
+          onClick={openActivitiesPanel}
+          style={hudBtn}
+        >
+          {spentEpThisWeek > 0 ? (
+            <span
+              aria-label={`${spentEpThisWeek} EP spent this week`}
+              style={{
+                position: "absolute",
+                top: 8,
+                right: 10,
+                minWidth: 18,
+                height: 18,
+                padding: "0 5px",
+                borderRadius: 999,
+                background: "#D73F09",
+                color: "#FFFFFF",
+                fontSize: "0.65rem",
                 fontWeight: 800,
-                color: epHudColor,
-                fontVariantNumeric: "tabular-nums",
-                transition: "color 0.25s ease",
+                lineHeight: "18px",
+                textAlign: "center",
+                boxShadow: "0 0 0 2px rgba(26,26,26,0.95)",
+                border: "1px solid rgba(255,255,255,0.35)",
               }}
             >
-              {energyRemaining}
+              {spentEpThisWeek}
             </span>
-          </div>
-          <div
-            style={{
-              background: "rgba(26, 26, 26, 0.85)",
-              borderRadius: 999,
-              padding: "8px 18px",
-              boxSizing: "border-box",
-              fontSize: "1.35rem",
-              fontWeight: 800,
-              color: "#1D9E75",
-              fontVariantNumeric: "tabular-nums",
-            }}
-            title="Spendable cash"
-          >
-            ${money}
-          </div>
-        </div>
-        <div
-          className="osu-display-font osu-display-font--micro"
-          style={{
-            background: "rgba(26, 26, 26, 0.85)",
-            borderRadius: 10,
-            padding: "6px 12px",
-            color: "#FFFFFF",
-            textAlign: "right",
-            fontSize: "clamp(0.42rem, 1.6vw, 0.55rem)",
-            lineHeight: 1.35,
-            maxWidth: "100%",
-          }}
+          ) : null}
+          Activities
+        </button>
+        <button
+          type="button"
+          className="osu-display-font osu-display-font--micro osu-hud-panel-btn"
+          onClick={openShopPanel}
+          style={hudBtn}
         >
-          {activeJob ? (
-            <>
-              <span style={{ opacity: 0.75 }}>Job: </span>
-              {activeJob.name} · ${activeJob.weeklyPay}/wk · {activeJob.epCost}{" "}
-              EP/wk
-            </>
-          ) : (
-            <span style={{ opacity: 0.65 }}>No job — open Career</span>
-          )}
-        </div>
-        {activePerks.length > 0 ? (
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 6,
-              justifyContent: "flex-end",
-            }}
-          >
-            {activePerks.map((p) => {
-              const label =
-                SHOP.find((s) => s.id === p.shopItemId)?.name ?? p.shopItemId;
-              return (
-                <span
-                  key={p.shopItemId}
-                  className="osu-display-font osu-display-font--micro"
-                  style={{
-                    fontSize: "clamp(0.38rem, 1.4vw, 0.48rem)",
-                    padding: "3px 8px",
-                    borderRadius: 999,
-                    background: "rgba(29, 158, 117, 0.2)",
-                    color: "#B8F0DC",
-                    border: "1px solid rgba(29, 158, 117, 0.55)",
-                    maxWidth: "100%",
-                  }}
-                  title="Ongoing shop perk — bonus each week"
-                >
-                  {label}
-                </span>
-              );
-            })}
-          </div>
-        ) : null}
+          Shop
+        </button>
+        <button
+          type="button"
+          className="osu-display-font osu-display-font--micro osu-hud-panel-btn"
+          onClick={openSummaryPanel}
+          style={{ ...hudBtn, marginBottom: 0 }}
+        >
+          Summary
+        </button>
       </div>
-
-      <button
-        type="button"
-        className="osu-display-font"
-        onClick={openCareerPanel}
-        style={{
-          position: "fixed",
-          right: 0,
-          top: "calc(50% - 108px)",
-          transform: "translateY(-50%)",
-          zIndex: 20,
-          background: "#2A2A2A",
-          color: "#FFFFFF",
-          border: "none",
-          borderTopLeftRadius: 10,
-          borderBottomLeftRadius: 10,
-          padding: "14px 10px",
-          cursor: "pointer",
-          boxShadow: "-2px 0 12px rgba(0, 0, 0, 0.35)",
-          writingMode: "vertical-rl",
-          textOrientation: "mixed",
-          fontSize: "clamp(0.45rem, 1.8vw, 0.58rem)",
-          letterSpacing: "0.08em",
-          lineHeight: 1.5,
-        }}
-      >
-        Career ▶
-      </button>
-
-      <button
-        type="button"
-        className="osu-display-font"
-        onClick={openActivitiesPanel}
-        style={{
-          position: "fixed",
-          right: 0,
-          top: "50%",
-          transform: "translateY(-50%)",
-          zIndex: 20,
-          background: "#D73F09",
-          color: "#FFFFFF",
-          border: "none",
-          borderTopLeftRadius: 10,
-          borderBottomLeftRadius: 10,
-          padding: "14px 10px",
-          cursor: "pointer",
-          boxShadow: "-2px 0 12px rgba(0, 0, 0, 0.35)",
-          writingMode: "vertical-rl",
-          textOrientation: "mixed",
-          fontSize: "clamp(0.45rem, 1.8vw, 0.58rem)",
-          letterSpacing: "0.08em",
-          lineHeight: 1.5,
-        }}
-      >
-        Activities ▶
-      </button>
-
-      <button
-        type="button"
-        className="osu-display-font"
-        onClick={openShopPanel}
-        style={{
-          position: "fixed",
-          right: 0,
-          top: "calc(50% + 108px)",
-          transform: "translateY(-50%)",
-          zIndex: 20,
-          background: "#1D9E75",
-          color: "#FFFFFF",
-          border: "none",
-          borderTopLeftRadius: 10,
-          borderBottomLeftRadius: 10,
-          padding: "14px 10px",
-          cursor: "pointer",
-          boxShadow: "-2px 0 12px rgba(0, 0, 0, 0.35)",
-          writingMode: "vertical-rl",
-          textOrientation: "mixed",
-          fontSize: "clamp(0.45rem, 1.8vw, 0.58rem)",
-          letterSpacing: "0.08em",
-          lineHeight: 1.5,
-        }}
-      >
-        Shop ▶
-      </button>
 
       <aside
         aria-hidden={!activitiesPanelOpen}
@@ -1426,6 +1577,185 @@ export default function Home() {
               </div>
             );
           })}
+        </div>
+      </aside>
+
+      <aside
+        aria-hidden={!summaryPanelOpen}
+        style={{
+          position: "fixed",
+          right: 0,
+          top: 0,
+          width: 340,
+          height: "100vh",
+          zIndex: 30,
+          background: "#1A1A1A",
+          transform: summaryPanelOpen ? "translateX(0)" : "translateX(100%)",
+          transition: "transform 0.3s ease",
+          display: "flex",
+          flexDirection: "column",
+          boxSizing: "border-box",
+          pointerEvents: summaryPanelOpen ? "auto" : "none",
+        }}
+      >
+        <button
+          type="button"
+          className="osu-display-font"
+          onClick={() => setSummaryPanelOpen(false)}
+          style={{
+            flexShrink: 0,
+            width: "100%",
+            padding: "12px 14px",
+            textAlign: "left",
+            background: "rgba(0, 0, 0, 0.25)",
+            color: "#FFFFFF",
+            border: "none",
+            borderBottom: "1px solid rgba(255, 255, 255, 0.12)",
+            cursor: "pointer",
+            fontSize: "clamp(0.45rem, 2vw, 0.62rem)",
+          }}
+        >
+          ◀ Close
+        </button>
+        <h2
+          className="osu-display-font"
+          style={{
+            flexShrink: 0,
+            margin: 0,
+            padding: "10px 14px 8px",
+            color: "#D73F09",
+            fontSize: "clamp(0.5rem, 2vw, 0.68rem)",
+          }}
+        >
+          Your OSU Story
+        </h2>
+        <div
+          style={{
+            height: "calc(100vh - 80px)",
+            overflowY: "auto",
+            padding: "0 14px 20px",
+            boxSizing: "border-box",
+          }}
+        >
+          {weekHistory.length === 0 ? (
+            <p
+              style={{
+                margin: "48px 0 0",
+                textAlign: "center",
+                color: "rgba(255, 255, 255, 0.45)",
+                fontSize: "clamp(0.4rem, 1.6vw, 0.52rem)",
+                lineHeight: 1.5,
+              }}
+            >
+              Your story is just beginning…
+            </p>
+          ) : (
+            [...new Set(weekHistory.map((e) => e.year))]
+              .sort((a, b) => a - b)
+              .map((y) => (
+                <section key={y} style={{ marginBottom: 12 }}>
+                  <h3
+                    className="osu-display-font"
+                    style={{
+                      margin: "0 0 6px",
+                      color: "#FFFFFF",
+                      fontSize: "clamp(0.42rem, 1.7vw, 0.55rem)",
+                    }}
+                  >
+                    {yearStoryHeading(y)}
+                  </h3>
+                  {weekHistory
+                    .filter((e) => e.year === y)
+                    .sort((a, b) => a.week - b.week)
+                    .map((entry) => {
+                      const statLine = formatStatChangeLine(
+                        entry.statsBefore,
+                        entry.statsAfter,
+                      );
+                      const statTokens =
+                        statLine === "—"
+                          ? []
+                          : statLine.split("  ").filter(Boolean);
+                      const evLine = historyEventTitlesLine(entry);
+                      return (
+                        <div
+                          key={`${entry.year}-${entry.week}`}
+                          style={{
+                            marginBottom: 8,
+                            lineHeight: 1.35,
+                            fontSize: "clamp(0.32rem, 1.25vw, 0.44rem)",
+                            color: "rgba(255, 255, 255, 0.88)",
+                          }}
+                        >
+                          <div
+                            className="osu-display-font"
+                            style={{
+                              color: "#D73F09",
+                              fontSize: "clamp(0.3rem, 1.15vw, 0.4rem)",
+                              marginBottom: 0,
+                            }}
+                          >
+                            Week {entry.week}
+                          </div>
+                          <div style={{ margin: 0, padding: 0 }}>
+                            Activities:{" "}
+                            {entry.activitiesChosen.length
+                              ? historyActivitiesSummaryLine(
+                                  entry.activitiesChosen,
+                                )
+                              : "—"}
+                          </div>
+                          {entry.jobWorked ? (
+                            <div style={{ margin: 0, padding: 0 }}>
+                              Worked at {entry.jobWorked} — ${entry.moneyEarned}
+                            </div>
+                          ) : null}
+                          {entry.shopItemsBought.length ? (
+                            <div style={{ margin: 0, padding: 0 }}>
+                              Bought: {entry.shopItemsBought.join(", ")}
+                            </div>
+                          ) : null}
+                          {evLine ? (
+                            <div
+                              className="osu-display-font"
+                              style={{
+                                color: "#D73F09",
+                                margin: 0,
+                                padding: 0,
+                                fontSize: "clamp(0.3rem, 1.15vw, 0.4rem)",
+                              }}
+                            >
+                              {evLine}
+                            </div>
+                          ) : null}
+                          <div style={{ margin: 0, padding: 0 }}>
+                            {statTokens.length === 0 ? (
+                              <span style={{ color: "rgba(255,255,255,0.4)" }}>
+                                —
+                              </span>
+                            ) : (
+                              statTokens.map((tok, i) => (
+                                <span key={i}>
+                                  {i > 0 ? "  " : null}
+                                  <span
+                                    style={{
+                                      color: tok.trim().startsWith("+")
+                                        ? "#4ADE80"
+                                        : "#F87171",
+                                    }}
+                                  >
+                                    {tok}
+                                  </span>
+                                </span>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </section>
+              ))
+          )}
         </div>
       </aside>
 
