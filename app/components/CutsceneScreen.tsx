@@ -34,6 +34,8 @@ export type CutsceneScreenProps = {
   statsBefore: WeekStats;
   statsAfter: WeekStats;
   extraEvent: CutsceneExtraEvent | null;
+  /** Short labels for the week’s activities, e.g. "Study x2", "Gym". */
+  activityChips: string[];
   onContinue: () => void;
 };
 
@@ -46,6 +48,7 @@ export default function CutsceneScreen({
   statsBefore,
   statsAfter,
   extraEvent,
+  activityChips,
   onContinue,
 }: CutsceneScreenProps) {
   const baseFont =
@@ -53,6 +56,8 @@ export default function CutsceneScreen({
 
   if (isLoading) {
     const outer: CSSProperties = {
+      position: "fixed",
+      inset: 0,
       minHeight: "100vh",
       width: "100%",
       margin: 0,
@@ -63,6 +68,7 @@ export default function CutsceneScreen({
       backgroundColor: BG,
       color: "#FFFFFF",
       padding: 24,
+      zIndex: 100,
     };
 
     return (
@@ -80,73 +86,51 @@ export default function CutsceneScreen({
     );
   }
 
-  const shell: CSSProperties = {
-    minHeight: "100vh",
-    width: "100%",
-    boxSizing: "border-box",
-    backgroundColor: BG,
+  const hasScene = sceneImage.trim().length > 0;
+
+  const chipStyle: CSSProperties = {
+    display: "inline-block",
+    padding: "4px 10px",
+    borderRadius: 20,
+    backgroundColor: ORANGE,
     color: "#FFFFFF",
-    padding: "1.25rem",
-    paddingBottom: "2rem",
+    fontSize: 12,
+    fontWeight: 600,
+    lineHeight: 1.35,
     fontFamily: baseFont,
   };
 
-  const inner: CSSProperties = {
-    maxWidth: "640px",
-    margin: "0 auto",
-  };
-
-  const meta: CSSProperties = {
-    fontSize: "0.9rem",
-    color: "rgba(255, 255, 255, 0.65)",
-    marginBottom: "0.75rem",
-    fontWeight: 600,
-  };
-
-  const imgWrap: CSSProperties = {
-    width: "100%",
-    marginBottom: "1.25rem",
-    borderRadius: "8px",
-    overflow: "hidden",
-    border: "1px solid rgba(255, 255, 255, 0.12)",
-    backgroundColor: "#0d0d0d",
-    display: "flex",
-    lineHeight: 0,
-  };
-
-  const story: CSSProperties = {
-    fontStyle: "italic",
-    color: "rgba(255, 255, 255, 0.55)",
-    fontSize: "1rem",
+  const storyStyle: CSSProperties = {
+    color: "rgba(255, 255, 255, 0.92)",
+    fontSize: "1.05rem",
     lineHeight: 1.65,
     marginBottom: "1.25rem",
+    fontFamily: baseFont,
   };
 
   const eventBox: CSSProperties = {
-    marginBottom: "1.35rem",
+    marginBottom: "1.25rem",
     padding: "1rem 1.1rem",
-    borderRadius: "8px",
+    borderRadius: 10,
     border: `1px solid ${ORANGE}`,
     backgroundColor: "rgba(215, 63, 9, 0.12)",
   };
 
   const eventLabel: CSSProperties = {
-    fontSize: "0.72rem",
+    fontSize: 11,
     textTransform: "uppercase",
     letterSpacing: "0.06em",
     color: ORANGE,
     fontWeight: 700,
     marginBottom: "0.5rem",
+    fontFamily: baseFont,
   };
 
   const eventDesc: CSSProperties = {
     fontSize: "0.9rem",
-    color: "rgba(255, 255, 255, 0.82)",
+    color: "rgba(255, 255, 255, 0.85)",
     lineHeight: 1.5,
-  };
-
-  const statsBlock: CSSProperties = {
-    marginBottom: "1.5rem",
+    fontFamily: baseFont,
   };
 
   const statRow: CSSProperties = {
@@ -157,6 +141,7 @@ export default function CutsceneScreen({
     padding: "0.55rem 0",
     borderBottom: "1px solid rgba(255, 255, 255, 0.08)",
     fontSize: "0.95rem",
+    fontFamily: baseFont,
   };
 
   const statLabel: CSSProperties = {
@@ -183,41 +168,120 @@ export default function CutsceneScreen({
 
   const btn: CSSProperties = {
     width: "100%",
-    padding: "0.9rem 1rem",
+    maxWidth: 480,
+    margin: "0 auto",
+    display: "block",
+    padding: "0.95rem 1rem",
     fontSize: "1rem",
     fontWeight: 700,
     border: "none",
-    borderRadius: "8px",
+    borderRadius: 10,
     cursor: "pointer",
     backgroundColor: ORANGE,
     color: "#FFFFFF",
     fontFamily: baseFont,
   };
 
-  const hasScene = sceneImage.trim().length > 0;
-
   return (
-    <div style={shell}>
-      <div style={inner}>
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        minHeight: "100vh",
+        width: "100%",
+        display: "flex",
+        flexDirection: "column",
+        margin: 0,
+        boxSizing: "border-box",
+        backgroundColor: "#000",
+        zIndex: 40,
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          flexShrink: 0,
+          width: "100%",
+          height: "50vh",
+          position: "relative",
+          overflow: "hidden",
+          backgroundColor: "#0d0d0d",
+        }}
+      >
+        {hasScene ? (
+          /* eslint-disable-next-line @next/next/no-img-element -- pixel art needs native img + image-rendering */
+          <img
+            src={`/scenes/${sceneImage.trim()}`}
+            alt=""
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              objectPosition: "center",
+              display: "block",
+              imageRendering: "pixelated",
+            }}
+          />
+        ) : (
+          <div
+            style={{
+              width: "100%",
+              height: "100%",
+              background: "linear-gradient(180deg, #1a1a1a 0%, #0d0d0d 100%)",
+            }}
+          />
+        )}
+      </div>
+
+      <div
+        style={{
+          flex: 1,
+          minHeight: "50vh",
+          width: "100%",
+          boxSizing: "border-box",
+          backgroundColor: BG,
+          color: "#FFFFFF",
+          padding: "1rem 1.25rem 1.5rem",
+          overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
+          fontFamily: baseFont,
+        }}
+      >
         <div
           className="osu-display-font osu-display-font--micro"
-          style={meta}
+          style={{
+            fontSize: 12,
+            color: "rgba(255, 255, 255, 0.55)",
+            marginBottom: "0.75rem",
+            fontWeight: 600,
+            textAlign: "center",
+          }}
         >
           Year {year} · Week {week}
         </div>
 
-        {hasScene ? (
-          <div style={imgWrap}>
-            {/* eslint-disable-next-line @next/next/no-img-element -- pixel art needs native img + image-rendering */}
-            <img
-              src={`/scenes/${sceneImage.trim()}`}
-              alt=""
-              style={{ imageRendering: "pixelated", width: "100%" }}
-            />
-          </div>
-        ) : null}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 8,
+            justifyContent: "center",
+            marginBottom: "1rem",
+          }}
+        >
+          {activityChips.length > 0
+            ? activityChips.map((label, i) => (
+                <span key={`${label}-${i}`} style={chipStyle}>
+                  {label}
+                </span>
+              ))
+            : null}
+        </div>
 
-        <p style={story}>{storyText}</p>
+        <p style={{ ...storyStyle, textAlign: "left", flexShrink: 0 }}>
+          {storyText}
+        </p>
 
         {extraEvent ? (
           <div style={eventBox}>
@@ -232,7 +296,7 @@ export default function CutsceneScreen({
           </div>
         ) : null}
 
-        <div style={statsBlock}>
+        <div style={{ marginBottom: "1.25rem", flexShrink: 0 }}>
           {STAT_KEYS.map((key) => {
             const before = Math.round(Number(statsBefore[key]) || 0);
             const after = Math.round(Number(statsAfter[key]) || 0);
@@ -255,9 +319,11 @@ export default function CutsceneScreen({
           })}
         </div>
 
-        <button type="button" style={btn} onClick={onContinue}>
-          Continue
-        </button>
+        <div style={{ marginTop: "auto", paddingTop: 8 }}>
+          <button type="button" style={btn} onClick={onContinue}>
+            Continue
+          </button>
+        </div>
       </div>
     </div>
   );

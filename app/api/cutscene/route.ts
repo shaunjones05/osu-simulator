@@ -3,10 +3,9 @@ import { randomUUID } from "node:crypto";
 import {
   buildCutsceneUserPrompt,
   buildWeeklyScenarioJsonPrompt,
+  FALLBACK_CUTSCENE,
 } from "@/app/lib/aiCutscene.js";
 import { anthropicMessagesComplete } from "@/app/lib/anthropicServer.js";
-
-const FALLBACK_STORY = "Another week at OSU in the books.";
 
 function extractJsonObject(text: string): unknown {
   const trimmed = text.trim();
@@ -102,7 +101,7 @@ export async function POST(req: Request) {
     const [storyText, apiScenario] = await Promise.all([
       anthropicMessagesComplete(cutscenePrompt, 300).catch((e) => {
         console.error("CUTSCENE ERROR:", e?.message ?? e);
-        return FALLBACK_STORY;
+        return FALLBACK_CUTSCENE;
       }),
       anthropicMessagesComplete(scenarioPrompt, 900)
         .then((rawJson) => {

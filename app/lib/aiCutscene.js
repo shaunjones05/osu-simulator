@@ -5,7 +5,7 @@ const MODEL = "claude-sonnet-4-20250514";
 const MAX_TOKENS_CUTSCENE = 300;
 const MAX_TOKENS_ENDING = 300;
 
-const FALLBACK_CUTSCENE = "Another week at OSU in the books.";
+export const FALLBACK_CUTSCENE = "Another week at OSU in the books.";
 const FALLBACK_ENDING =
   "Your graduation belongs to you alone — a path no ending title could capture.";
 

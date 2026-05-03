@@ -19,7 +19,11 @@ import {
   checkGameOver,
   getEnding,
 } from "./lib/gameLogic.js";
-import { generateCutscene, generateCustomEnding } from "./lib/aiCutscene.js";
+import {
+  FALLBACK_CUTSCENE,
+  generateCutscene,
+  generateCustomEnding,
+} from "./lib/aiCutscene.js";
 import { getScenarioForWeek } from "./lib/scenarios.js";
 import StartScreen from "./components/StartScreen";
 import StatBars from "./components/StatBars";
@@ -307,6 +311,9 @@ export default function Home() {
   const [weeklyPurchases, setWeeklyPurchases] = useState<string[]>([]);
   const [weeklyShopSpend, setWeeklyShopSpend] = useState(0);
   const [summaryPanelOpen, setSummaryPanelOpen] = useState(false);
+  const [cutsceneActivityChips, setCutsceneActivityChips] = useState<string[]>(
+    [],
+  );
   const [toast, setToast] = useState({ message: "", visible: false });
   const toastDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -366,6 +373,7 @@ export default function Home() {
           setWeeklyPurchases([]);
           setWeeklyShopSpend(0);
           setSummaryPanelOpen(false);
+          setCutsceneActivityChips([]);
           if (toastDismissTimerRef.current) {
             clearTimeout(toastDismissTimerRef.current);
             toastDismissTimerRef.current = null;
@@ -533,17 +541,39 @@ export default function Home() {
           jobLine,
         }),
       });
+      const data = (await res.json()) as {
+        storyText?: string;
+        apiScenario?: ScenarioForPopup | null;
+        error?: string;
+      };
+      console.log("[cutscene] /api/cutscene response:", {
+        ok: res.ok,
+        status: res.status,
+        storyPreview: (data.storyText ?? "").slice(0, 120),
+        storyLength: (data.storyText ?? "").length,
+        hasApiScenario: Boolean(data.apiScenario),
+        error: data.error,
+      });
       if (res.ok) {
-        const data = (await res.json()) as {
-          storyText?: string;
-          apiScenario?: ScenarioForPopup | null;
-        };
         story = data.storyText ?? "";
         apiScenario = data.apiScenario ?? null;
       } else {
-        throw new Error("cutscene api");
+        throw new Error(data.error ?? "cutscene api");
       }
-    } catch {
+    } catch (err) {
+      console.warn("[cutscene] /api/cutscene fetch failed:", err);
+      story = "";
+      apiScenario = null;
+    }
+
+    const storyTrimmed = (story || "").trim();
+    if (
+      !storyTrimmed ||
+      storyTrimmed === FALLBACK_CUTSCENE.trim()
+    ) {
+      console.log(
+        "[cutscene] Invoking client generateCutscene (empty or server fallback text)",
+      );
       story = await generateCutscene(
         name,
         year,
@@ -554,7 +584,11 @@ export default function Home() {
         moneyForNarrative,
         jobLine,
       );
-      apiScenario = null;
+      console.log("[cutscene] generateCutscene result preview:", {
+        preview: story.slice(0, 120),
+        length: story.length,
+        isStillFallback: story.trim() === FALLBACK_CUTSCENE.trim(),
+      });
     }
 
     return {
@@ -648,6 +682,11 @@ export default function Home() {
       };
       setWeekHistory((h) => [...h, weekEntry]);
 
+      setCutsceneActivityChips(
+        formatActivitiesSummaryLine(selections)
+          .split(", ")
+          .filter(Boolean),
+      );
       setPendingApiScenario(apiScenario);
       setStoryText(story);
       setSceneImageFilename(sceneFile);
@@ -906,6 +945,7 @@ export default function Home() {
         statsBefore={before}
         statsAfter={after}
         extraEvent={cutsceneExtraEvent}
+        activityChips={cutsceneActivityChips}
         onContinue={() => {
           void handleCutsceneContinue();
         }}
