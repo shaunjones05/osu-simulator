@@ -3,7 +3,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ACTIVITIES,
-  ACTIVITIES_FOR_SIM,
   WEEKS_PER_YEAR,
   INITIAL_STATS,
   ENERGY_BY_YEAR,
@@ -27,7 +26,6 @@ import {
   assetRowAllowsQuickSell,
   rollPokemonPackPull,
   SOULMATES,
-  DATING_SEARCH_ACTIVITY,
 } from "./lib/gameData.js";
 import {
   applyWeek,
@@ -182,6 +180,9 @@ function formatStatDelta(delta: Record<string, number> | null | undefined) {
 /** Fixed max EP per week (matches ENERGY_BY_YEAR in v2). */
 const WEEKLY_EP_MAX = 5;
 
+/** EP cost for "Find My Soulmate" in the Dating panel. */
+const FIND_SOULMATE_EP_COST = 1;
+
 const ACTIVITY_SHORT_LABEL: Record<string, string> = {
   "study-valley-library": "Study",
   "class-cordley-hall": "Class",
@@ -193,12 +194,11 @@ const ACTIVITY_SHORT_LABEL: Record<string, string> = {
   "club-mu": "Club",
   "study-group-kelley": "Study group",
   gambling: "Gamble",
-  "find-soulmate": "Dating",
 };
 
 function activityShortLabel(activityId: string): string {
   if (ACTIVITY_SHORT_LABEL[activityId]) return ACTIVITY_SHORT_LABEL[activityId];
-  const a = ACTIVITIES_FOR_SIM.find((ac) => ac.id === activityId);
+  const a = ACTIVITIES.find((ac) => ac.id === activityId);
   if (!a) return activityId;
   return a.name.split(/\s+/)[0] ?? activityId;
 }
@@ -262,7 +262,7 @@ function historyActivitiesSummaryLine(
   chosen: { name: string; location: string }[],
 ): string {
   const ids = chosen.map((c) => {
-    const a = ACTIVITIES_FOR_SIM.find(
+    const a = ACTIVITIES.find(
       (ac) => ac.name === c.name && ac.location === c.location,
     );
     return a?.id ?? c.name;
@@ -348,7 +348,7 @@ function pickSceneImageFromSelections(weekSelections: string[]): string {
   for (const id of order) {
     const totalEp = weekSelections.reduce((sum, pick) => {
       if (pick !== id) return sum;
-      const a = ACTIVITIES_FOR_SIM.find((ac) => ac.id === pick);
+      const a = ACTIVITIES.find((ac) => ac.id === pick);
       return sum + (a?.epCost ?? 0);
     }, 0);
     if (totalEp > bestEp) {
@@ -356,7 +356,7 @@ function pickSceneImageFromSelections(weekSelections: string[]): string {
       bestId = id;
     }
   }
-  const activity = ACTIVITIES_FOR_SIM.find((ac) => ac.id === bestId);
+  const activity = ACTIVITIES.find((ac) => ac.id === bestId);
   return activity?.sceneImage ?? "";
 }
 
@@ -409,12 +409,6 @@ export default function Home() {
     ENERGY_BY_YEAR.year1,
   );
   const [weekSelections, setWeekSelections] = useState<string[]>([]);
-  /** 1 EP dating search merged into week resolve; not stored in `weekSelections`. */
-  const [datingSearchThisWeek, setDatingSearchThisWeek] = useState(false);
-  /** Full activity id list for the active cutscene summary (includes dating when used). */
-  const [cutsceneWeekActivityIds, setCutsceneWeekActivityIds] = useState<
-    string[]
-  >([]);
   const [gamePhase, setGamePhase] = useState<GamePhase>("picking");
   const [isGeneratingStory, setIsGeneratingStory] = useState(false);
   const [storyText, setStoryText] = useState("");
@@ -429,6 +423,7 @@ export default function Home() {
   const [finalEnding, setFinalEnding] = useState<GraduationEnding | null>(null);
   const [aiEndingText, setAiEndingText] = useState("");
   const [activitiesPanelOpen, setActivitiesPanelOpen] = useState(false);
+  const [datingPanelOpen, setDatingPanelOpen] = useState(false);
   const [careerPanelOpen, setCareerPanelOpen] = useState(false);
   const [shopPanelOpen, setShopPanelOpen] = useState(false);
   const [assetsPanelOpen, setAssetsPanelOpen] = useState(false);
@@ -437,7 +432,10 @@ export default function Home() {
     id: string;
     name: string;
   } | null>(null);
-  const [isDateAvailable, setIsDateAvailable] = useState(true);
+  const [relationshipStartDate, setRelationshipStartDate] = useState<{
+    year: number;
+    week: number;
+  } | null>(null);
   const [fakeidRisk, setFakeidRisk] = useState<FakeIdRisk>("none");
   const [fakeIdConfirmItemId, setFakeIdConfirmItemId] = useState<string | null>(
     null,
@@ -530,7 +528,7 @@ export default function Home() {
           setPlayerName(name);
           setPlayerMajor(major);
           setCurrentSoulmate(null);
-          setIsDateAvailable(true);
+          setRelationshipStartDate(null);
           setCurrentYear(1);
           setCurrentWeek(1);
           const baseline = { ...INITIAL_STATS };
@@ -538,8 +536,7 @@ export default function Home() {
           setWeek1BaselineStats(baseline);
           setEnergyRemaining(ENERGY_BY_YEAR.year1);
           setWeekSelections([]);
-          setDatingSearchThisWeek(false);
-          setCutsceneWeekActivityIds([]);
+          setDatingPanelOpen(false);
           setGamePhase("picking");
           setIsGeneratingStory(false);
           setStoryText("");
@@ -672,7 +669,7 @@ export default function Home() {
     },
   ) {
     let s: WeekStats = normalizeWeekStats(
-      applyWeek(statsBefore, selections, ACTIVITIES_FOR_SIM),
+      applyWeek(statsBefore, selections, ACTIVITIES),
     );
     s = normalizeWeekStats(
       applyPassiveEffects(s, {
@@ -945,19 +942,13 @@ export default function Home() {
   }
 
   function handleActivityConfirm() {
-    const datingEp = datingSearchThisWeek ? DATING_SEARCH_ACTIVITY.epCost : 0;
-    const spentEpConfirm =
-      weekSelections.reduce((sum, id) => {
-        const a = ACTIVITIES.find((ac) => ac.id === id);
-        return sum + (a?.epCost ?? 0);
-      }, 0) + datingEp;
+    const spentEpConfirm = weekSelections.reduce((sum, id) => {
+      const a = ACTIVITIES.find((ac) => ac.id === id);
+      return sum + (a?.epCost ?? 0);
+    }, 0);
     if (spentEpConfirm < 1) return;
 
-    const selections =
-      datingSearchThisWeek &&
-      !weekSelections.includes("find-soulmate")
-        ? [...weekSelections, "find-soulmate"]
-        : [...weekSelections];
+    const selections = [...weekSelections];
 
     if (!firstPartyDone && selections.includes("frat-party-26th")) {
       setActiveScenario(FIRST_PARTY_COKE_SCENARIO);
@@ -991,8 +982,6 @@ export default function Home() {
 
     const statsBefore: WeekStats = { ...stats };
     const hadSoulmateAtWeekStart = currentSoulmate !== null;
-    const hadPartnerAtWeekStart = hadSoulmateAtWeekStart;
-    const dateSlotOpen = isDateAvailable;
     const year = currentYear;
     const week = currentWeek;
     const baseline = { ...week1BaselineStats };
@@ -1010,6 +999,7 @@ export default function Home() {
     playConfirm();
     setIsGeneratingStory(true);
     setActivitiesPanelOpen(false);
+    setDatingPanelOpen(false);
     setCareerPanelOpen(false);
     setShopPanelOpen(false);
     setAssetsPanelOpen(false);
@@ -1050,29 +1040,12 @@ export default function Home() {
         },
       );
 
-      if (
-        selections.includes("find-soulmate") &&
-        !hadPartnerAtWeekStart &&
-        dateSlotOpen &&
-        SOULMATES.length > 0
-      ) {
-        const pick =
-          SOULMATES[Math.floor(Math.random() * SOULMATES.length)];
-        if (pick) {
-          setCurrentSoulmate(pick);
-          setIsDateAvailable(false);
-          showHudToast(
-            `💕 You matched with ${pick.name}! You are now dating.`,
-          );
-        }
-      }
-
       setGamblingBetAmount(null);
       setGamblingMoneyNet(null);
       setGamblingBetInput("");
 
       const activitiesChosen = selections.map((id) => {
-        const a = ACTIVITIES_FOR_SIM.find((ac) => ac.id === id);
+        const a = ACTIVITIES.find((ac) => ac.id === id);
         return {
           name: a?.name ?? id,
           location: a?.location ?? "",
@@ -1098,8 +1071,6 @@ export default function Home() {
       setStoryText(story);
       setSceneImageFilename(sceneFile);
       setCutsceneExtraEvent(extra);
-      setCutsceneWeekActivityIds(selections);
-      setDatingSearchThisWeek(false);
       setCutsceneStatsBefore(statsBefore);
       setCutsceneStatsAfter(finalStats);
       setStats(finalStats);
@@ -1148,9 +1119,8 @@ export default function Home() {
     if (currentWeek < WEEKS_PER_YEAR) {
       setCurrentWeek((w) => w + 1);
       setWeekSelections([]);
-      setDatingSearchThisWeek(false);
-      setCutsceneWeekActivityIds([]);
       setActivitiesPanelOpen(false);
+      setDatingPanelOpen(false);
       setCareerPanelOpen(false);
       setShopPanelOpen(false);
       setAssetsPanelOpen(false);
@@ -1167,9 +1137,8 @@ export default function Home() {
       setCurrentYear(nextYear);
       setCurrentWeek(1);
       setWeekSelections([]);
-      setDatingSearchThisWeek(false);
-      setCutsceneWeekActivityIds([]);
       setActivitiesPanelOpen(false);
+      setDatingPanelOpen(false);
       setCareerPanelOpen(false);
       setShopPanelOpen(false);
       setAssetsPanelOpen(false);
@@ -1286,6 +1255,7 @@ export default function Home() {
   }
 
   function openActivitiesPanel() {
+    setDatingPanelOpen(false);
     setCareerPanelOpen(false);
     setShopPanelOpen(false);
     setAssetsPanelOpen(false);
@@ -1293,8 +1263,18 @@ export default function Home() {
     setActivitiesPanelOpen(true);
   }
 
+  function openDatingPanel() {
+    setActivitiesPanelOpen(false);
+    setCareerPanelOpen(false);
+    setShopPanelOpen(false);
+    setAssetsPanelOpen(false);
+    setSummaryPanelOpen(false);
+    setDatingPanelOpen(true);
+  }
+
   function openCareerPanel() {
     setActivitiesPanelOpen(false);
+    setDatingPanelOpen(false);
     setShopPanelOpen(false);
     setAssetsPanelOpen(false);
     setSummaryPanelOpen(false);
@@ -1303,6 +1283,7 @@ export default function Home() {
 
   function openShopPanel() {
     setActivitiesPanelOpen(false);
+    setDatingPanelOpen(false);
     setCareerPanelOpen(false);
     setAssetsPanelOpen(false);
     setSummaryPanelOpen(false);
@@ -1311,6 +1292,7 @@ export default function Home() {
 
   function openAssetsPanel() {
     setActivitiesPanelOpen(false);
+    setDatingPanelOpen(false);
     setCareerPanelOpen(false);
     setShopPanelOpen(false);
     setSummaryPanelOpen(false);
@@ -1319,6 +1301,7 @@ export default function Home() {
 
   function openSummaryPanel() {
     setActivitiesPanelOpen(false);
+    setDatingPanelOpen(false);
     setCareerPanelOpen(false);
     setShopPanelOpen(false);
     setAssetsPanelOpen(false);
@@ -1360,7 +1343,19 @@ export default function Home() {
     }, 2500);
   }
 
-  function handleBreakUp() {
+  function findSoulmateFromPanel() {
+    if (currentSoulmate) return;
+    if (energyRemaining < FIND_SOULMATE_EP_COST) return;
+    if (SOULMATES.length === 0) return;
+    const pick = SOULMATES[Math.floor(Math.random() * SOULMATES.length)];
+    if (!pick) return;
+    setCurrentSoulmate(pick);
+    setRelationshipStartDate({ year: currentYear, week: currentWeek });
+    setEnergyRemaining((e) => e - FIND_SOULMATE_EP_COST);
+    showHudToast(`💕 You matched with ${pick.name}! You are now dating.`);
+  }
+
+  function handleBreakUpFromDatingPanel() {
     if (!currentSoulmate) return;
     const nm = currentSoulmate.name;
     if (
@@ -1369,20 +1364,8 @@ export default function Home() {
       return;
     }
     setCurrentSoulmate(null);
-    setIsDateAvailable(true);
+    setRelationshipStartDate(null);
     showHudToast(`💔 You and ${nm} have broken up.`);
-  }
-
-  function toggleDatingSearchThisWeek() {
-    if (currentSoulmate) return;
-    if (datingSearchThisWeek) {
-      setDatingSearchThisWeek(false);
-      setEnergyRemaining((e) => e + DATING_SEARCH_ACTIVITY.epCost);
-    } else {
-      if (energyRemaining < DATING_SEARCH_ACTIVITY.epCost) return;
-      setDatingSearchThisWeek(true);
-      setEnergyRemaining((e) => e - DATING_SEARCH_ACTIVITY.epCost);
-    }
   }
 
   function showShopPurchaseToast(item: (typeof SHOP)[number]) {
@@ -1607,11 +1590,7 @@ export default function Home() {
         statsBefore={before}
         statsAfter={after}
         extraEvent={cutsceneExtraEvent}
-        weekSelections={
-          cutsceneWeekActivityIds.length > 0
-            ? cutsceneWeekActivityIds
-            : weekSelections
-        }
+        weekSelections={weekSelections}
         onContinue={() => {
           void handleCutsceneContinue();
         }}
@@ -1655,6 +1634,7 @@ export default function Home() {
   const spentEpThisWeek = WEEKLY_EP_MAX - energyRemaining;
   const slidePanelsOpen =
     activitiesPanelOpen ||
+    datingPanelOpen ||
     careerPanelOpen ||
     shopPanelOpen ||
     summaryPanelOpen;
@@ -1761,48 +1741,12 @@ export default function Home() {
             ${money}
           </span>
         </div>
-        {currentSoulmate ? (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 10,
-              flexWrap: "wrap",
-            }}
-          >
-            <span
-              style={{
-                color: "#E91E8C",
-                fontWeight: 700,
-                fontSize: "0.95rem",
-              }}
-            >
-              💕 {currentSoulmate.name}
-            </span>
-            <button
-              type="button"
-              onClick={handleBreakUp}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "rgba(255,255,255,0.65)",
-                fontSize: "0.8rem",
-                cursor: "pointer",
-                textDecoration: "underline",
-                padding: 0,
-              }}
-            >
-              💔 Break up
-            </button>
-          </div>
-        ) : null}
       </div>
 
       <div
         style={{
           position: "fixed",
-          top: currentSoulmate ? 118 : 70,
+          top: 70,
           left: 16,
           zIndex: 10,
           width: 248,
@@ -1892,6 +1836,29 @@ export default function Home() {
         <button
           type="button"
           className="osu-display-font osu-display-font--micro osu-hud-panel-btn"
+          onClick={openDatingPanel}
+          style={hudBtn}
+        >
+          {currentSoulmate ? (
+            <span
+              aria-hidden
+              style={{
+                position: "absolute",
+                top: 8,
+                right: 10,
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: "#E91E8C",
+                boxShadow: "0 0 0 2px rgba(26,26,26,0.9)",
+              }}
+            />
+          ) : null}
+          💕 Dating
+        </button>
+        <button
+          type="button"
+          className="osu-display-font osu-display-font--micro osu-hud-panel-btn"
           onClick={openShopPanel}
           style={hudBtn}
         >
@@ -1970,7 +1937,6 @@ export default function Home() {
             totalEnergy={WEEKLY_EP_MAX}
             currentYear={currentYear}
             weekSelections={weekSelections}
-            extraEpSpent={datingSearchThisWeek ? DATING_SEARCH_ACTIVITY.epCost : 0}
             onAdd={(id) => {
               const activity = ACTIVITIES.find((a) => a.id === id);
               if (!activity || energyRemaining < activity.epCost) return;
@@ -2931,62 +2897,234 @@ export default function Home() {
         </div>
       </aside>
 
-      {gamePhase === "picking" && !isGeneratingStory ? (
-        <>
+      <aside
+        aria-hidden={!datingPanelOpen}
+        style={{
+          position: "fixed",
+          right: 0,
+          top: 0,
+          width: 340,
+          height: "100vh",
+          zIndex: 30,
+          background: "#1A1A1A",
+          transform: datingPanelOpen ? "translateX(0)" : "translateX(100%)",
+          transition: "transform 0.3s ease",
+          display: "flex",
+          flexDirection: "column",
+          boxSizing: "border-box",
+          pointerEvents: datingPanelOpen ? "auto" : "none",
+        }}
+      >
         <button
           type="button"
-          className="osu-display-font osu-display-font--micro"
-          onClick={toggleDatingSearchThisWeek}
-          disabled={
-            currentSoulmate !== null ||
-            (!datingSearchThisWeek &&
-              energyRemaining < DATING_SEARCH_ACTIVITY.epCost)
-          }
-          aria-pressed={datingSearchThisWeek}
-          aria-label={
-            datingSearchThisWeek
-              ? "Remove dating search this week (refund 1 EP)"
-              : "Spend 1 EP on dating search this week"
-          }
+          className="osu-display-font"
+          onClick={() => setDatingPanelOpen(false)}
           style={{
-            position: "fixed",
-            left: 16,
-            bottom: 20,
-            zIndex: 10050,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 4,
-            padding: "10px 14px",
-            borderRadius: 14,
-            border: datingSearchThisWeek
-              ? "2px solid rgba(233, 30, 140, 0.65)"
-              : "2px solid rgba(255,255,255,0.22)",
-            background: datingSearchThisWeek
-              ? "rgba(233, 30, 140, 0.22)"
-              : "rgba(26, 26, 26, 0.92)",
+            flexShrink: 0,
+            width: "100%",
+            padding: "12px 14px",
+            textAlign: "left",
+            background: "rgba(0, 0, 0, 0.25)",
             color: "#FFFFFF",
-            cursor:
-              currentSoulmate !== null ||
-              (!datingSearchThisWeek &&
-                energyRemaining < DATING_SEARCH_ACTIVITY.epCost)
-                ? "not-allowed"
-                : "pointer",
-            opacity:
-              currentSoulmate !== null ||
-              (!datingSearchThisWeek &&
-                energyRemaining < DATING_SEARCH_ACTIVITY.epCost)
-                ? 0.45
-                : 1,
-            boxShadow: "0 4px 16px rgba(0,0,0,0.35)",
-            minWidth: 72,
+            border: "none",
+            borderBottom: "1px solid rgba(255, 255, 255, 0.12)",
+            cursor: "pointer",
+            fontSize: "clamp(0.45rem, 2vw, 0.62rem)",
           }}
         >
-          <span style={{ fontSize: "1.35rem", lineHeight: 1 }} aria-hidden>
-            ❤️
-          </span>
-          <span style={{ fontSize: PANEL_FS, fontWeight: 700 }}>Dating</span>
+          ◀ Close
         </button>
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              flex: 1,
+              overflowY: "auto",
+              padding: "16px 14px 12px",
+              boxSizing: "border-box",
+            }}
+          >
+            <h2
+              className="osu-display-font"
+              style={{
+                margin: "0 0 12px",
+                color: "#D73F09",
+                fontSize: PANEL_H2,
+                textAlign: "center",
+              }}
+            >
+              💕 Dating
+            </h2>
+            {currentSoulmate ? (
+              <>
+                <div
+                  style={{
+                    textAlign: "center",
+                    marginBottom: 8,
+                    fontSize: "2.5rem",
+                    lineHeight: 1,
+                  }}
+                  aria-hidden
+                >
+                  💕
+                </div>
+                <div
+                  style={{
+                    textAlign: "center",
+                    fontSize: 12,
+                    color: "rgba(255,255,255,0.55)",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    marginBottom: 6,
+                  }}
+                >
+                  Your Partner
+                </div>
+                <div
+                  className="osu-display-font"
+                  style={{
+                    textAlign: "center",
+                    fontSize: 22,
+                    fontWeight: 800,
+                    color: "#FFFFFF",
+                    marginBottom: 8,
+                    lineHeight: 1.25,
+                  }}
+                >
+                  {currentSoulmate.name}
+                </div>
+                {relationshipStartDate ? (
+                  <div
+                    style={{
+                      textAlign: "center",
+                      fontSize: 13,
+                      color: "#888888",
+                      marginBottom: 16,
+                    }}
+                  >
+                    Together since Year {relationshipStartDate.year} Week{" "}
+                    {relationshipStartDate.week}
+                  </div>
+                ) : null}
+                <div
+                  style={{
+                    height: 1,
+                    background: "rgba(255,255,255,0.12)",
+                    margin: "16px 0",
+                  }}
+                  aria-hidden
+                />
+                <div
+                  style={{
+                    textAlign: "center",
+                    fontSize: 14,
+                    color: "#4ADE80",
+                    marginBottom: 8,
+                  }}
+                >
+                  +4 Happiness every week 💛
+                </div>
+              </>
+            ) : (
+              <>
+                <p
+                  style={{
+                    margin: "0 0 20px",
+                    fontSize: PANEL_FS,
+                    lineHeight: 1.45,
+                    color: "rgba(255,255,255,0.78)",
+                    textAlign: "center",
+                  }}
+                >
+                  Your soulmate is out there somewhere on campus…
+                </p>
+                <button
+                  type="button"
+                  className="osu-display-font"
+                  onClick={findSoulmateFromPanel}
+                  disabled={
+                    energyRemaining < FIND_SOULMATE_EP_COST ||
+                    SOULMATES.length === 0
+                  }
+                  style={{
+                    width: "100%",
+                    padding: "16px 14px",
+                    borderRadius: 10,
+                    border: "none",
+                    background:
+                      energyRemaining < FIND_SOULMATE_EP_COST ||
+                      SOULMATES.length === 0
+                        ? "#5C5C5C"
+                        : "#D73F09",
+                    color: "#FFFFFF",
+                    fontSize: PANEL_FS,
+                    fontWeight: 700,
+                    cursor:
+                      energyRemaining < FIND_SOULMATE_EP_COST ||
+                      SOULMATES.length === 0
+                        ? "not-allowed"
+                        : "pointer",
+                    opacity:
+                      energyRemaining < FIND_SOULMATE_EP_COST ||
+                      SOULMATES.length === 0
+                        ? 0.65
+                        : 1,
+                  }}
+                >
+                  Find My Soulmate
+                </button>
+                <p
+                  style={{
+                    margin: "10px 0 0",
+                    textAlign: "center",
+                    fontSize: 13,
+                    color: "rgba(255,255,255,0.45)",
+                  }}
+                >
+                  Costs {FIND_SOULMATE_EP_COST} EP this week
+                </p>
+              </>
+            )}
+          </div>
+          {currentSoulmate ? (
+            <div
+              style={{
+                flexShrink: 0,
+                padding: "12px 14px 16px",
+                borderTop: "1px solid rgba(255, 255, 255, 0.1)",
+              }}
+            >
+              <button
+                type="button"
+                className="osu-display-font"
+                onClick={handleBreakUpFromDatingPanel}
+                style={{
+                  width: "100%",
+                  padding: "14px 14px",
+                  borderRadius: 10,
+                  border: "none",
+                  background: "#991B1B",
+                  color: "#FFFFFF",
+                  fontSize: PANEL_FS,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                💔 Break Up
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </aside>
+
+      {gamePhase === "picking" && !isGeneratingStory ? (
         <div
           style={{
             position: "fixed",
@@ -3036,7 +3174,6 @@ export default function Home() {
             Next Week
           </span>
         </div>
-        </>
       ) : null}
 
       <div

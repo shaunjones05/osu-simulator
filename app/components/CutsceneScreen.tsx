@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import { ACTIVITIES_FOR_SIM } from "../lib/gameData.js";
+import { ACTIVITIES } from "../lib/gameData.js";
 import type { WeekStats } from "./WeekSummary";
 import LoadingScreen from "./LoadingScreen";
 
@@ -54,7 +54,7 @@ export function buildWeekActivitySummary(selectionIds: string[]): string {
 
   const clauses = order.map((id) => {
     const n = counts.get(id) ?? 1;
-    const a = ACTIVITIES_FOR_SIM.find((x) => x.id === id);
+    const a = ACTIVITIES.find((x) => x.id === id);
     if (!a) {
       return `did something${repeatSuffix(n)}`;
     }
@@ -80,8 +80,6 @@ export function buildWeekActivitySummary(selectionIds: string[]): string {
         return `had a study group at ${loc}${suf}`;
       case "gambling":
         return `went to a gambling night${suf}`;
-      case "find-soulmate":
-        return `went looking for a soulmate on campus${suf}`;
       default:
         return `${a.name.toLowerCase()} at ${loc}${suf}`;
     }
