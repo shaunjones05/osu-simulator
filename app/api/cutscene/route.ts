@@ -78,6 +78,8 @@ export async function POST(req: Request) {
       : [];
     const finalStats = (body.finalStats as Record<string, number>) ?? {};
     const baseline = (body.baseline as Record<string, number>) ?? {};
+    const moneyForNarrative = Number(body.moneyForNarrative ?? 0) || 0;
+    const jobLine = String(body.jobLine ?? "");
 
     const cutscenePrompt = buildCutsceneUserPrompt(
       playerName,
@@ -86,6 +88,8 @@ export async function POST(req: Request) {
       chosenActivities,
       finalStats,
       baseline,
+      moneyForNarrative,
+      jobLine,
     );
     const scenarioPrompt = buildWeeklyScenarioJsonPrompt(
       playerName,

@@ -5,8 +5,12 @@ import {
   ACTIVITIES,
   INITIAL_STATS,
   ENERGY_BY_YEAR,
+  JOBS,
+  SHOP,
   getSpecialEvent,
   getRandEvent,
+  rollFakeIdArrest,
+  jobIsAvailable,
 } from "./lib/gameData.js";
 import {
   applyWeek,
@@ -38,7 +42,32 @@ type GamePhase =
   | "gameover"
   | "graduation";
 
+type FakeIdRisk = "none" | "high" | "low";
+
+type ActivePerk = {
+  shopItemId: string;
+  weeklyBonus: Record<string, number> | null;
+};
+
+function clampMoney(n: number): number {
+  const x = Math.round(Number(n));
+  if (Number.isNaN(x)) return 0;
+  return Math.max(0, x);
+}
+
 const STAT_KEYS = ["gpa", "health", "happiness", "social"] as const;
+
+function formatStatDelta(delta: Record<string, number> | null | undefined) {
+  if (!delta) return "—";
+  const parts: string[] = [];
+  for (const k of STAT_KEYS) {
+    const v = delta[k];
+    if (typeof v === "number" && v !== 0) {
+      parts.push(`${k} ${v > 0 ? "+" : ""}${v}`);
+    }
+  }
+  return parts.length ? parts.join(" · ") : "—";
+}
 
 /** Fixed max EP per week (matches ENERGY_BY_YEAR in v2). */
 const WEEKLY_EP_MAX = 5;
@@ -149,6 +178,13 @@ export default function Home() {
   const [finalEnding, setFinalEnding] = useState<GraduationEnding | null>(null);
   const [aiEndingText, setAiEndingText] = useState("");
   const [activitiesPanelOpen, setActivitiesPanelOpen] = useState(false);
+  const [careerPanelOpen, setCareerPanelOpen] = useState(false);
+  const [shopPanelOpen, setShopPanelOpen] = useState(false);
+  const [money, setMoney] = useState(500);
+  const [fakeidRisk, setFakeidRisk] = useState<FakeIdRisk>("none");
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [ownedShopIds, setOwnedShopIds] = useState<string[]>([]);
+  const [activePerks, setActivePerks] = useState<ActivePerk[]>([]);
   const [usedScenarioIds, setUsedScenarioIds] = useState<string[]>([]);
   const [pendingApiScenario, setPendingApiScenario] =
     useState<ScenarioForPopup | null>(null);
@@ -179,6 +215,13 @@ export default function Home() {
           setFinalEnding(null);
           setAiEndingText("");
           setActivitiesPanelOpen(false);
+          setCareerPanelOpen(false);
+          setShopPanelOpen(false);
+          setMoney(500);
+          setFakeidRisk("none");
+          setActiveJobId(null);
+          setOwnedShopIds([]);
+          setActivePerks([]);
           setUsedScenarioIds([]);
           setPendingApiScenario(null);
           setActiveScenario(null);
@@ -224,11 +267,17 @@ export default function Home() {
     baseline: WeekStats,
     name: string,
     scenarioIdsForApi: string[],
+    moneyBefore: number,
+    activeJobIdAtStart: string | null,
+    activePerksSnapshot: ActivePerk[],
+    fakeidRiskAtStart: FakeIdRisk,
   ) {
     let s: WeekStats = normalizeWeekStats(
       applyWeek(statsBefore, selections, ACTIVITIES),
     );
-    s = normalizeWeekStats(applyPassiveEffects(s));
+    s = normalizeWeekStats(
+      applyPassiveEffects(s, { activePerks: activePerksSnapshot }),
+    );
 
     const special = getSpecialEvent(year, week);
     if (special) {
@@ -246,8 +295,40 @@ export default function Home() {
       s = normalizeWeekStats(applyStatDelta(s, rand.effect));
     }
 
+    const job = activeJobIdAtStart
+      ? JOBS.find((j) => j.id === activeJobIdAtStart)
+      : null;
+    let moneyNetChange = job ? job.weeklyPay : 0;
+
+    const arrest = rollFakeIdArrest(
+      fakeidRiskAtStart === "high" || fakeidRiskAtStart === "low"
+        ? fakeidRiskAtStart
+        : "none",
+    );
+    if (arrest) {
+      s = normalizeWeekStats(applyStatDelta(s, arrest.effect));
+      moneyNetChange += arrest.moneyDelta;
+      const arrestExtra: CutsceneExtraEvent = {
+        title: arrest.title,
+        description: arrest.description,
+      };
+      if (extra) {
+        extra = {
+          title: "This week at OSU",
+          description: `${extra.title}: ${extra.description}\n\n— ${arrestExtra.title}: ${arrestExtra.description}`,
+        };
+      } else {
+        extra = arrestExtra;
+      }
+    }
+
     const finalStats = normalizeWeekStats(s);
     const sceneFile = pickSceneImageFromSelections(selections);
+
+    const jobLine = job
+      ? `${job.name} at ${job.location} ($${job.weeklyPay}/week, ${job.epCost} EP/week)`
+      : "no part-time job";
+    const moneyForNarrative = clampMoney(moneyBefore + moneyNetChange);
 
     let story = "";
     let apiScenario: ScenarioForPopup | null = null;
@@ -263,6 +344,8 @@ export default function Home() {
           finalStats,
           baseline,
           usedScenarioIds: scenarioIdsForApi,
+          moneyForNarrative,
+          jobLine,
         }),
       });
       if (res.ok) {
@@ -283,6 +366,8 @@ export default function Home() {
         selections,
         finalStats,
         baseline,
+        moneyForNarrative,
+        jobLine,
       );
       apiScenario = null;
     }
@@ -293,24 +378,42 @@ export default function Home() {
       sceneFile,
       extra,
       apiScenario,
+      moneyNetChange,
     };
   }
 
   function handleActivityConfirm() {
+    const job = activeJobId
+      ? JOBS.find((j) => j.id === activeJobId)
+      : null;
+    const jobEp = job?.epCost ?? 0;
+    if (jobEp > 0 && energyRemaining < jobEp) {
+      window.alert(
+        `Your job uses ${jobEp} EP this week, but you only have ${energyRemaining} EP left after activities. Remove some activities or quit your job in Career before ending the week.`,
+      );
+      return;
+    }
+
     const statsBefore: WeekStats = { ...stats };
     const selections = [...weekSelections];
     const year = currentYear;
     const week = currentWeek;
     const baseline = { ...week1BaselineStats };
     const name = playerName;
+    const moneySnap = money;
+    const jobSnap = activeJobId;
+    const perksSnap = [...activePerks];
+    const riskSnap = fakeidRisk;
 
     setIsGeneratingStory(true);
     setActivitiesPanelOpen(false);
+    setCareerPanelOpen(false);
+    setShopPanelOpen(false);
     setPendingApiScenario(null);
     setGamePhase("cutscene");
 
     void (async () => {
-      const { finalStats, story, sceneFile, extra, apiScenario } =
+      const { finalStats, story, sceneFile, extra, apiScenario, moneyNetChange } =
         await resolveWeekEnd(
           statsBefore,
           selections,
@@ -319,6 +422,10 @@ export default function Home() {
           baseline,
           name,
           usedScenarioIds,
+          moneySnap,
+          jobSnap,
+          perksSnap,
+          riskSnap,
         );
 
       setPendingApiScenario(apiScenario);
@@ -328,6 +435,7 @@ export default function Home() {
       setCutsceneStatsBefore(statsBefore);
       setCutsceneStatsAfter(finalStats);
       setStats(finalStats);
+      setMoney((m) => clampMoney(m + moneyNetChange));
       setIsGeneratingStory(false);
 
       const over = checkGameOver(finalStats);
@@ -343,6 +451,8 @@ export default function Home() {
       setCurrentWeek((w) => w + 1);
       setWeekSelections([]);
       setActivitiesPanelOpen(false);
+      setCareerPanelOpen(false);
+      setShopPanelOpen(false);
       setGamePhase("picking");
       setEnergyRemaining(WEEKLY_EP_MAX);
       return;
@@ -354,6 +464,8 @@ export default function Home() {
       setCurrentWeek(1);
       setWeekSelections([]);
       setActivitiesPanelOpen(false);
+      setCareerPanelOpen(false);
+      setShopPanelOpen(false);
       setGamePhase("picking");
       setEnergyRemaining(WEEKLY_EP_MAX);
       return;
@@ -414,6 +526,61 @@ export default function Home() {
     }
     void advanceAfterWeekResolved(nextStats);
   }
+
+  function openActivitiesPanel() {
+    setCareerPanelOpen(false);
+    setShopPanelOpen(false);
+    setActivitiesPanelOpen(true);
+  }
+
+  function openCareerPanel() {
+    setActivitiesPanelOpen(false);
+    setShopPanelOpen(false);
+    setCareerPanelOpen(true);
+  }
+
+  function openShopPanel() {
+    setActivitiesPanelOpen(false);
+    setCareerPanelOpen(false);
+    setShopPanelOpen(true);
+  }
+
+  function buyShopItem(itemId: string) {
+    const item = SHOP.find((i) => i.id === itemId);
+    if (!item) return;
+    if (money < item.cost) return;
+    if (!item.isOneTime && ownedShopIds.includes(itemId)) return;
+
+    if (item.isFakeId) {
+      const hard =
+        item.fakeidRisk === "high"
+          ? "HIGH RISK: about 20% chance EACH WEEK of a fake-ID bust with Corvallis PD — big hits to social, happiness, and GPA, plus $200 in lawyer fees."
+          : "LOWER RISK: about 5% chance EACH WEEK of the same kind of arrest — milder stat penalties and $150 in fees.";
+      const msg = `${hard}\n\nBuying still adds the listed social boost once. OK to buy?`;
+      if (!window.confirm(msg)) return;
+    }
+
+    setMoney((m) => clampMoney(m - item.cost));
+    setStats((st) => normalizeWeekStats(applyStatDelta(st, item.effect)));
+    if (item.isFakeId && item.fakeidRisk) {
+      setFakeidRisk(item.fakeidRisk);
+    }
+    if (!item.isOneTime && item.weeklyBonus) {
+      setOwnedShopIds((prev) =>
+        prev.includes(itemId) ? prev : [...prev, itemId],
+      );
+      setActivePerks((prev) => [
+        ...prev,
+        { shopItemId: itemId, weeklyBonus: item.weeklyBonus },
+      ]);
+    }
+  }
+
+  const activeJob = activeJobId
+    ? JOBS.find((j) => j.id === activeJobId)
+    : null;
+  const shopMainItems = SHOP.filter((i) => i.category !== "underground");
+  const shopUnderground = SHOP.filter((i) => i.category === "underground");
 
   if (gamePhase === "scenario" && activeScenario) {
     return (
@@ -512,34 +679,154 @@ export default function Home() {
           right: 16,
           zIndex: 10,
           display: "flex",
-          alignItems: "center",
+          flexDirection: "column",
+          alignItems: "flex-end",
           gap: 8,
-          background: "rgba(26, 26, 26, 0.85)",
-          borderRadius: 20,
-          padding: "8px 16px",
+          maxWidth: "min(92vw, 320px)",
           boxSizing: "border-box",
         }}
       >
-        <span style={{ fontSize: "1.25rem", lineHeight: 1 }} aria-hidden>
-          ⚡
-        </span>
-        <span
+        <div
           style={{
-            fontSize: "1.75rem",
-            fontWeight: 800,
-            color: epHudColor,
-            fontVariantNumeric: "tabular-nums",
-            transition: "color 0.25s ease",
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            gap: 8,
           }}
         >
-          {energyRemaining}
-        </span>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              background: "rgba(26, 26, 26, 0.85)",
+              borderRadius: 20,
+              padding: "8px 16px",
+              boxSizing: "border-box",
+            }}
+          >
+            <span style={{ fontSize: "1.25rem", lineHeight: 1 }} aria-hidden>
+              ⚡
+            </span>
+            <span
+              style={{
+                fontSize: "1.75rem",
+                fontWeight: 800,
+                color: epHudColor,
+                fontVariantNumeric: "tabular-nums",
+                transition: "color 0.25s ease",
+              }}
+            >
+              {energyRemaining}
+            </span>
+          </div>
+          <div
+            style={{
+              background: "rgba(26, 26, 26, 0.85)",
+              borderRadius: 999,
+              padding: "8px 18px",
+              boxSizing: "border-box",
+              fontSize: "1.35rem",
+              fontWeight: 800,
+              color: "#1D9E75",
+              fontVariantNumeric: "tabular-nums",
+            }}
+            title="Spendable cash"
+          >
+            ${money}
+          </div>
+        </div>
+        <div
+          className="osu-display-font osu-display-font--micro"
+          style={{
+            background: "rgba(26, 26, 26, 0.85)",
+            borderRadius: 10,
+            padding: "6px 12px",
+            color: "#FFFFFF",
+            textAlign: "right",
+            fontSize: "clamp(0.42rem, 1.6vw, 0.55rem)",
+            lineHeight: 1.35,
+            maxWidth: "100%",
+          }}
+        >
+          {activeJob ? (
+            <>
+              <span style={{ opacity: 0.75 }}>Job: </span>
+              {activeJob.name} · ${activeJob.weeklyPay}/wk · {activeJob.epCost}{" "}
+              EP/wk
+            </>
+          ) : (
+            <span style={{ opacity: 0.65 }}>No job — open Career</span>
+          )}
+        </div>
+        {activePerks.length > 0 ? (
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 6,
+              justifyContent: "flex-end",
+            }}
+          >
+            {activePerks.map((p) => {
+              const label =
+                SHOP.find((s) => s.id === p.shopItemId)?.name ?? p.shopItemId;
+              return (
+                <span
+                  key={p.shopItemId}
+                  className="osu-display-font osu-display-font--micro"
+                  style={{
+                    fontSize: "clamp(0.38rem, 1.4vw, 0.48rem)",
+                    padding: "3px 8px",
+                    borderRadius: 999,
+                    background: "rgba(29, 158, 117, 0.2)",
+                    color: "#B8F0DC",
+                    border: "1px solid rgba(29, 158, 117, 0.55)",
+                    maxWidth: "100%",
+                  }}
+                  title="Ongoing shop perk — bonus each week"
+                >
+                  {label}
+                </span>
+              );
+            })}
+          </div>
+        ) : null}
       </div>
 
       <button
         type="button"
         className="osu-display-font"
-        onClick={() => setActivitiesPanelOpen(true)}
+        onClick={openCareerPanel}
+        style={{
+          position: "fixed",
+          right: 0,
+          top: "calc(50% - 108px)",
+          transform: "translateY(-50%)",
+          zIndex: 20,
+          background: "#2A2A2A",
+          color: "#FFFFFF",
+          border: "none",
+          borderTopLeftRadius: 10,
+          borderBottomLeftRadius: 10,
+          padding: "14px 10px",
+          cursor: "pointer",
+          boxShadow: "-2px 0 12px rgba(0, 0, 0, 0.35)",
+          writingMode: "vertical-rl",
+          textOrientation: "mixed",
+          fontSize: "clamp(0.45rem, 1.8vw, 0.58rem)",
+          letterSpacing: "0.08em",
+          lineHeight: 1.5,
+        }}
+      >
+        Career ▶
+      </button>
+
+      <button
+        type="button"
+        className="osu-display-font"
+        onClick={openActivitiesPanel}
         style={{
           position: "fixed",
           right: 0,
@@ -562,6 +849,34 @@ export default function Home() {
         }}
       >
         Activities ▶
+      </button>
+
+      <button
+        type="button"
+        className="osu-display-font"
+        onClick={openShopPanel}
+        style={{
+          position: "fixed",
+          right: 0,
+          top: "calc(50% + 108px)",
+          transform: "translateY(-50%)",
+          zIndex: 20,
+          background: "#1D9E75",
+          color: "#FFFFFF",
+          border: "none",
+          borderTopLeftRadius: 10,
+          borderBottomLeftRadius: 10,
+          padding: "14px 10px",
+          cursor: "pointer",
+          boxShadow: "-2px 0 12px rgba(0, 0, 0, 0.35)",
+          writingMode: "vertical-rl",
+          textOrientation: "mixed",
+          fontSize: "clamp(0.45rem, 1.8vw, 0.58rem)",
+          letterSpacing: "0.08em",
+          lineHeight: 1.5,
+        }}
+      >
+        Shop ▶
       </button>
 
       <aside
@@ -640,6 +955,435 @@ export default function Home() {
             }}
             onConfirm={handleActivityConfirm}
           />
+        </div>
+      </aside>
+
+      <aside
+        aria-hidden={!careerPanelOpen}
+        style={{
+          position: "fixed",
+          right: 0,
+          top: 0,
+          width: 340,
+          height: "100vh",
+          zIndex: 30,
+          background: "#1A1A1A",
+          transform: careerPanelOpen ? "translateX(0)" : "translateX(100%)",
+          transition: "transform 0.3s ease",
+          display: "flex",
+          flexDirection: "column",
+          boxSizing: "border-box",
+          pointerEvents: careerPanelOpen ? "auto" : "none",
+        }}
+      >
+        <button
+          type="button"
+          className="osu-display-font"
+          onClick={() => setCareerPanelOpen(false)}
+          style={{
+            flexShrink: 0,
+            width: "100%",
+            padding: "12px 14px",
+            textAlign: "left",
+            background: "rgba(0, 0, 0, 0.25)",
+            color: "#FFFFFF",
+            border: "none",
+            borderBottom: "1px solid rgba(255, 255, 255, 0.12)",
+            cursor: "pointer",
+            fontSize: "clamp(0.45rem, 2vw, 0.62rem)",
+          }}
+        >
+          ◀ Close
+        </button>
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+            padding: "12px 14px 24px",
+            color: "#E8E8E8",
+          }}
+        >
+          <h2
+            className="osu-display-font"
+            style={{
+              margin: "0 0 12px",
+              fontSize: "clamp(0.55rem, 2.2vw, 0.75rem)",
+              color: "#FFFFFF",
+            }}
+          >
+            Campus jobs
+          </h2>
+          {activeJobId ? (
+            <button
+              type="button"
+              className="osu-display-font"
+              onClick={() => setActiveJobId(null)}
+              style={{
+                marginBottom: 14,
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: 8,
+                border: "1px solid rgba(239, 68, 68, 0.6)",
+                background: "rgba(239, 68, 68, 0.12)",
+                color: "#FCA5A5",
+                cursor: "pointer",
+                fontSize: "clamp(0.42rem, 1.8vw, 0.55rem)",
+              }}
+            >
+              Quit current job
+            </button>
+          ) : null}
+          {JOBS.filter((job) => jobIsAvailable(job, currentYear)).map((job) => {
+            const isCurrent = activeJobId === job.id;
+            return (
+              <div
+                key={job.id}
+                style={{
+                  marginBottom: 12,
+                  padding: 12,
+                  borderRadius: 10,
+                  background: "rgba(255,255,255,0.06)",
+                  border: isCurrent
+                    ? "1px solid rgba(29, 158, 117, 0.7)"
+                    : "1px solid rgba(255,255,255,0.1)",
+                }}
+              >
+                <div
+                  className="osu-display-font"
+                  style={{
+                    fontSize: "clamp(0.48rem, 2vw, 0.62rem)",
+                    color: "#FFFFFF",
+                    marginBottom: 4,
+                  }}
+                >
+                  {job.name}
+                </div>
+                <div
+                  style={{
+                    fontSize: "clamp(0.38rem, 1.5vw, 0.5rem)",
+                    opacity: 0.85,
+                    marginBottom: 6,
+                  }}
+                >
+                  {job.location} · {job.epCost} EP/wk · ${job.weeklyPay}/wk
+                </div>
+                <p
+                  style={{
+                    margin: "0 0 10px",
+                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
+                    lineHeight: 1.45,
+                    opacity: 0.9,
+                  }}
+                >
+                  {job.description}
+                </p>
+                <button
+                  type="button"
+                  className="osu-display-font"
+                  disabled={isCurrent}
+                  onClick={() => setActiveJobId(job.id)}
+                  style={{
+                    width: "100%",
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: isCurrent ? "rgba(29,158,117,0.35)" : "#D73F09",
+                    color: "#FFFFFF",
+                    cursor: isCurrent ? "default" : "pointer",
+                    fontSize: "clamp(0.4rem, 1.6vw, 0.52rem)",
+                    opacity: isCurrent ? 0.85 : 1,
+                  }}
+                >
+                  {isCurrent ? "Current job" : "Apply"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </aside>
+
+      <aside
+        aria-hidden={!shopPanelOpen}
+        style={{
+          position: "fixed",
+          right: 0,
+          top: 0,
+          width: 340,
+          height: "100vh",
+          zIndex: 30,
+          background: "#1A1A1A",
+          transform: shopPanelOpen ? "translateX(0)" : "translateX(100%)",
+          transition: "transform 0.3s ease",
+          display: "flex",
+          flexDirection: "column",
+          boxSizing: "border-box",
+          pointerEvents: shopPanelOpen ? "auto" : "none",
+        }}
+      >
+        <button
+          type="button"
+          className="osu-display-font"
+          onClick={() => setShopPanelOpen(false)}
+          style={{
+            flexShrink: 0,
+            width: "100%",
+            padding: "12px 14px",
+            textAlign: "left",
+            background: "rgba(0, 0, 0, 0.25)",
+            color: "#FFFFFF",
+            border: "none",
+            borderBottom: "1px solid rgba(255, 255, 255, 0.12)",
+            cursor: "pointer",
+            fontSize: "clamp(0.45rem, 2vw, 0.62rem)",
+          }}
+        >
+          ◀ Close
+        </button>
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+            padding: "12px 14px 24px",
+            color: "#E8E8E8",
+          }}
+        >
+          <h2
+            className="osu-display-font"
+            style={{
+              margin: "0 0 12px",
+              fontSize: "clamp(0.55rem, 2.2vw, 0.75rem)",
+              color: "#FFFFFF",
+            }}
+          >
+            Shop
+          </h2>
+          {shopMainItems.map((item) => {
+            const ownedOngoing = !item.isOneTime && ownedShopIds.includes(item.id);
+            const canAfford = money >= item.cost;
+            const canBuy = canAfford && !ownedOngoing;
+            return (
+              <div
+                key={item.id}
+                style={{
+                  marginBottom: 12,
+                  padding: 12,
+                  borderRadius: 10,
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  opacity: canBuy || ownedOngoing ? 1 : 0.45,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    gap: 8,
+                    marginBottom: 6,
+                  }}
+                >
+                  <div
+                    className="osu-display-font"
+                    style={{
+                      fontSize: "clamp(0.48rem, 2vw, 0.62rem)",
+                      color: "#FFFFFF",
+                    }}
+                  >
+                    {item.name}
+                  </div>
+                  {ownedOngoing ? (
+                    <span
+                      className="osu-display-font osu-display-font--micro"
+                      style={{
+                        flexShrink: 0,
+                        fontSize: "clamp(0.34rem, 1.3vw, 0.44rem)",
+                        padding: "2px 8px",
+                        borderRadius: 999,
+                        background: "rgba(29, 158, 117, 0.25)",
+                        color: "#B8F0DC",
+                        border: "1px solid #1D9E75",
+                      }}
+                    >
+                      Owned
+                    </span>
+                  ) : null}
+                </div>
+                <p
+                  style={{
+                    margin: "0 0 8px",
+                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
+                    lineHeight: 1.45,
+                    opacity: 0.9,
+                  }}
+                >
+                  {item.description}
+                </p>
+                <div
+                  style={{
+                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
+                    marginBottom: 6,
+                    color: "#1D9E75",
+                    fontWeight: 700,
+                  }}
+                >
+                  ${item.cost}
+                </div>
+                <div
+                  style={{
+                    fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+                    marginBottom: 8,
+                    opacity: 0.88,
+                  }}
+                >
+                  Now: {formatStatDelta(item.effect)}
+                  {!item.isOneTime && item.weeklyBonus ? (
+                    <>
+                      {" "}
+                      · Weekly: {formatStatDelta(item.weeklyBonus)}
+                    </>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  className="osu-display-font"
+                  disabled={!canBuy}
+                  onClick={() => buyShopItem(item.id)}
+                  style={{
+                    width: "100%",
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: !canBuy ? "rgba(120,120,120,0.35)" : "#1D9E75",
+                    color: "#FFFFFF",
+                    cursor: !canBuy ? "not-allowed" : "pointer",
+                    fontSize: "clamp(0.4rem, 1.6vw, 0.52rem)",
+                  }}
+                >
+                  {ownedOngoing ? "Owned" : canAfford ? "Buy" : "Cannot afford"}
+                </button>
+              </div>
+            );
+          })}
+
+          <h3
+            className="osu-display-font"
+            style={{
+              margin: "20px 0 10px",
+              fontSize: "clamp(0.5rem, 2vw, 0.65rem)",
+              color: "#FCA5A5",
+            }}
+          >
+            Underground market
+          </h3>
+          <p
+            style={{
+              margin: "0 0 12px",
+              fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+              lineHeight: 1.45,
+              color: "#F87171",
+              border: "1px solid rgba(248, 113, 113, 0.45)",
+              borderRadius: 8,
+              padding: "10px 12px",
+              background: "rgba(127, 29, 29, 0.2)",
+            }}
+          >
+            <strong style={{ color: "#FECACA" }}>Illegal — high stakes.</strong>{" "}
+            Cheap IDs carry about a <strong>20% chance each week</strong> of a
+            Corvallis PD fake-ID arrest (heavy social, happiness, and GPA hits
+            plus <strong>$200</strong> in lawyer fees). “Premium” IDs still risk
+            about a <strong>5% weekly</strong> bust with milder penalties and{" "}
+            <strong>$150</strong> in fees. You still get the one-time social
+            boost if you buy — then you live with the roll every week.
+          </p>
+          {shopUnderground.map((item) => {
+            const canAfford = money >= item.cost;
+            return (
+              <div
+                key={item.id}
+                style={{
+                  marginBottom: 12,
+                  padding: 12,
+                  borderRadius: 10,
+                  background: "rgba(127, 29, 29, 0.12)",
+                  border: "1px solid rgba(248, 113, 113, 0.35)",
+                  opacity: canAfford ? 1 : 0.45,
+                }}
+              >
+                <div
+                  className="osu-display-font"
+                  style={{
+                    fontSize: "clamp(0.48rem, 2vw, 0.62rem)",
+                    color: "#FECACA",
+                    marginBottom: 6,
+                  }}
+                >
+                  {item.name}
+                </div>
+                <p
+                  style={{
+                    margin: "0 0 8px",
+                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
+                    lineHeight: 1.45,
+                    color: "#FEE2E2",
+                  }}
+                >
+                  {item.description}
+                </p>
+                <p
+                  style={{
+                    margin: "0 0 8px",
+                    fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+                    lineHeight: 1.45,
+                    color: "#FCA5A5",
+                  }}
+                >
+                  {item.fakeidRisk === "high"
+                    ? "Risk: ~20% arrest chance per week if you carry this route — stats tank + $200 fees."
+                    : "Risk: ~5% arrest chance per week — milder stat hits + $150 fees."}
+                </p>
+                <div
+                  style={{
+                    fontSize: "clamp(0.36rem, 1.45vw, 0.48rem)",
+                    marginBottom: 6,
+                    color: "#F87171",
+                    fontWeight: 700,
+                  }}
+                >
+                  ${item.cost}
+                </div>
+                <div
+                  style={{
+                    fontSize: "clamp(0.34rem, 1.35vw, 0.46rem)",
+                    marginBottom: 8,
+                    opacity: 0.9,
+                    color: "#FEE2E2",
+                  }}
+                >
+                  Instant: {formatStatDelta(item.effect)}
+                </div>
+                <button
+                  type="button"
+                  className="osu-display-font"
+                  disabled={!canAfford}
+                  onClick={() => buyShopItem(item.id)}
+                  style={{
+                    width: "100%",
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: !canAfford ? "rgba(120,120,120,0.35)" : "#B91C1C",
+                    color: "#FFFFFF",
+                    cursor: !canAfford ? "not-allowed" : "pointer",
+                    fontSize: "clamp(0.4rem, 1.6vw, 0.52rem)",
+                  }}
+                >
+                  {canAfford ? "Buy (confirm risk)" : "Cannot afford"}
+                </button>
+              </div>
+            );
+          })}
         </div>
       </aside>
 

@@ -105,6 +105,273 @@ export const ENERGY_BY_YEAR = {
   year4: 5,
 };
 
+/**
+ * Campus jobs — player holds at most one. `epCost` is charged each week on End Week; `weeklyPay` is added then.
+ * `minYear` / `maxYear` gate eligibility (inclusive).
+ * @type {Array<{ id: string; name: string; location: string; epCost: number; weeklyPay: number; description: string; minYear?: number; maxYear?: number }>}
+ */
+export const JOBS = [
+  {
+    id: "job-dutch-barista",
+    name: "Campus Barista",
+    location: "Dutch Bros on campus",
+    epCost: 2,
+    weeklyPay: 150,
+    description: "Early shifts, syrup pumps, and regulars who remember your name.",
+  },
+  {
+    id: "job-library-assistant",
+    name: "Library Assistant",
+    location: "Valley Library",
+    epCost: 2,
+    weeklyPay: 175,
+    description: "Stacks, scanners, and whisper-quiet drama in the stacks.",
+  },
+  {
+    id: "job-mu-food-court",
+    name: "MU Food Court Worker",
+    location: "Memorial Union",
+    epCost: 3,
+    weeklyPay: 225,
+    description: "Rush-hour trays, fryer alarms, and free shift meals when the manager looks away.",
+  },
+  {
+    id: "job-research-cordley",
+    name: "Research Assistant",
+    location: "Cordley Hall",
+    epCost: 4,
+    weeklyPay: 300,
+    description: "Pipettes, lab notebooks, and your name creeping toward a paper acknowledgments section.",
+  },
+  {
+    id: "job-ra-mcnary",
+    name: "Resident Advisor",
+    location: "McNary Hall",
+    epCost: 3,
+    weeklyPay: 250,
+    minYear: 2,
+    description:
+      "Floor meetings, duty rounds, and a built-in housing perk — your room is covered so you bank more of that paycheck.",
+  },
+  {
+    id: "job-tech-kelley",
+    name: "Tech Support",
+    location: "Kelley Engineering Center",
+    epCost: 4,
+    weeklyPay: 350,
+    description: "Ticket queues, ghosted VPNs, and professors who think rebooting is a personality.",
+  },
+  {
+    id: "job-intern-startup",
+    name: "Internship",
+    location: "Local Corvallis startup",
+    epCost: 5,
+    weeklyPay: 500,
+    minYear: 3,
+    description:
+      "Equity jargon, Slack pings at midnight, and a résumé line that actually impresses recruiters.",
+  },
+];
+
+/**
+ * @param {typeof JOBS[number]} job
+ * @param {number} year 1–4
+ * @returns {boolean}
+ */
+export function jobIsAvailable(job, year) {
+  const y = Number(year) || 1;
+  const min = job.minYear != null ? Number(job.minYear) : 1;
+  const max = job.maxYear != null ? Number(job.maxYear) : 4;
+  return y >= min && y <= max;
+}
+
+/**
+ * Shop & underground items. `effect` applies immediately on purchase (stats 0–100 scale).
+ * `weeklyBonus` applies every week in passive phase after purchase (ongoing only).
+ * @type {Array<{
+ *   id: string;
+ *   name: string;
+ *   description: string;
+ *   cost: number;
+ *   effect: StatDelta;
+ *   isOneTime: boolean;
+ *   weeklyBonus: StatDelta | null;
+ *   category?: "shop" | "underground";
+ *   isFakeId?: boolean;
+ *   fakeidRisk?: "high" | "low";
+ * }>}
+ */
+export const SHOP = [
+  {
+    id: "shop-coffee-dutch",
+    name: "Coffee from Dutch Bros",
+    description: "Iced Americano, extra ice, zero regrets until the caffeine wears off.",
+    cost: 6,
+    effect: { happiness: 5, gpa: 3 },
+    isOneTime: true,
+    weeklyBonus: null,
+    category: "shop",
+  },
+  {
+    id: "shop-meal-local-boyz",
+    name: "Meal at Local Boyz",
+    description: "Platter-sized portions and a nap schedule you did not plan for.",
+    cost: 12,
+    effect: { health: 8, happiness: 6 },
+    isOneTime: true,
+    weeklyBonus: null,
+    category: "shop",
+  },
+  {
+    id: "shop-rivas-late",
+    name: "Late night Rivas Taco run",
+    description: "Al pastor, salsa verde, and the walk home smells like victory.",
+    cost: 8,
+    effect: { health: 5, happiness: 8, social: 3 },
+    isOneTime: true,
+    weeklyBonus: null,
+    category: "shop",
+  },
+  {
+    id: "shop-drinks-tiki",
+    name: "Drinks at Downward Dog Tiki Tuesday",
+    description: "Plastic cups, loud music, and tomorrow-you sends a vague apology text.",
+    cost: 15,
+    effect: { happiness: 10, social: 10, gpa: -2 },
+    isOneTime: true,
+    weeklyBonus: null,
+    category: "shop",
+  },
+  {
+    id: "shop-spring-break-newport",
+    name: "Spring Break trip to Newport Beach",
+    description: "Salt air, highway miles, and a group chat that will never die.",
+    cost: 200,
+    effect: { happiness: 20, social: 15, gpa: -5 },
+    isOneTime: true,
+    weeklyBonus: null,
+    category: "shop",
+  },
+  {
+    id: "shop-tailgate-supplies",
+    name: "Tailgate supplies for football game",
+    description: "Coolers, chips, and enough orange face paint to stain your soul.",
+    cost: 25,
+    effect: { happiness: 12, social: 12 },
+    isOneTime: true,
+    weeklyBonus: null,
+    category: "shop",
+  },
+  {
+    id: "shop-tutor-library",
+    name: "Tutor session at Valley Library",
+    description: "Whiteboard markers and someone who actually understands Chapter 7.",
+    cost: 40,
+    effect: { gpa: 15, happiness: 3 },
+    isOneTime: true,
+    weeklyBonus: null,
+    category: "shop",
+  },
+  {
+    id: "shop-concert-gill",
+    name: "Concert at Gill Coliseum",
+    description: "Floor seats, bass you feel in your ribs, and ringing ears until Monday.",
+    cost: 45,
+    effect: { happiness: 15, social: 10 },
+    isOneTime: true,
+    weeklyBonus: null,
+    category: "shop",
+  },
+  {
+    id: "shop-coffee-maker",
+    name: "Coffee maker for dorm",
+    description: "Four-cup salvation every morning without crossing Monroe.",
+    cost: 35,
+    effect: {},
+    isOneTime: false,
+    weeklyBonus: { gpa: 2, happiness: 2 },
+    category: "shop",
+  },
+  {
+    id: "shop-gym-shoes",
+    name: "New gym shoes",
+    description: "Arch support that Dixon Rec never gave you for free.",
+    cost: 60,
+    effect: {},
+    isOneTime: false,
+    weeklyBonus: { health: 2 },
+    category: "shop",
+  },
+  {
+    id: "shop-textbooks-used",
+    name: "Textbooks (used)",
+    description: "Highlights from someone smarter than you — steal their margin notes.",
+    cost: 80,
+    effect: {},
+    isOneTime: false,
+    weeklyBonus: { gpa: 3 },
+    category: "shop",
+  },
+  {
+    id: "shop-laptop-upgrade",
+    name: "Laptop upgrade",
+    description: "Fans spin less, compile times drop, and Canvas loads before you rage-quit.",
+    cost: 200,
+    effect: {},
+    isOneTime: false,
+    weeklyBonus: { gpa: 4, happiness: 2 },
+    category: "shop",
+  },
+  {
+    id: "underground-fake-id-cheap",
+    name: 'Cheap Fake ID from “some guy on Reddit”',
+    description:
+      "A JPEG of a JPEG of an ID. It scans until it does not. You were warned.",
+    cost: 40,
+    effect: { social: 15 },
+    isOneTime: true,
+    weeklyBonus: null,
+    category: "underground",
+    isFakeId: true,
+    fakeidRisk: "high",
+  },
+  {
+    id: "underground-fake-id-premium",
+    name: 'Premium Fake ID from a “professional”',
+    description:
+      "Hologram that almost passes the squint test. Still illegal — just slower to fall apart.",
+    cost: 120,
+    effect: { social: 15 },
+    isOneTime: true,
+    weeklyBonus: null,
+    category: "underground",
+    isFakeId: true,
+    fakeidRisk: "low",
+  },
+];
+
+/**
+ * Fake-ID arrest weekly roll (separate from {@link getRandEvent}).
+ * @param {"none" | "high" | "low"} fakeidRisk
+ * @returns {{ title: string; description: string; effect: StatDelta; moneyDelta: number } | null}
+ */
+export function rollFakeIdArrest(fakeidRisk) {
+  if (fakeidRisk !== "high" && fakeidRisk !== "low") return null;
+  const chance = fakeidRisk === "high" ? 0.2 : 0.05;
+  if (Math.random() >= chance) return null;
+  const hard = fakeidRisk === "high";
+  return {
+    title: "Caught with a fake ID — arrested",
+    description: hard
+      ? "Corvallis PD pulls you outside Downward Dog. Lights flash, cuffs click, and your night ends in paperwork. Parents get the voicemail. Lawyer fees drain your account before the ink dries."
+      : "A bouncer flags the laminate shimmer. Corvallis PD gets involved, but your “professional” hookup keeps charges lighter — still expensive, still humiliating, still on your record in the group chat.",
+    effect: hard
+      ? { social: -20, happiness: -25, gpa: -15 }
+      : { social: -15, happiness: -20, gpa: -10 },
+    moneyDelta: hard ? -200 : -150,
+  };
+}
+
 /** @typedef {{ gpa?: number; health?: number; happiness?: number; social?: number }} StatDelta */
 
 /**

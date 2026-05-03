@@ -70,13 +70,25 @@ export function applyWeek(currentStats, selectedActivityIds, activities) {
 /**
  * Post-week passive rules (PDR). Does not mutate `stats`.
  * @param {Record<string, number>} stats
+ * @param {{ activePerks?: Array<{ weeklyBonus?: Record<string, number> | null }> }} [options]
  * @returns {Record<string, number>}
  */
-export function applyPassiveEffects(stats) {
+export function applyPassiveEffects(stats, options) {
+  const perks = options?.activePerks ?? [];
+
   let gpa = Number(stats?.gpa) || 0;
   let health = Number(stats?.health) || 0;
   let happiness = Number(stats?.happiness) || 0;
   let social = Number(stats?.social) || 0;
+
+  for (const p of perks) {
+    const b = p?.weeklyBonus;
+    if (!b || typeof b !== "object") continue;
+    gpa += Number(b.gpa) || 0;
+    health += Number(b.health) || 0;
+    happiness += Number(b.happiness) || 0;
+    social += Number(b.social) || 0;
+  }
 
   if (happiness < 20) {
     gpa -= 3;
