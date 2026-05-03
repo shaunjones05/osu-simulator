@@ -943,20 +943,35 @@ export default function Home() {
 
   return (
     <>
-      {/* eslint-disable-next-line @next/next/no-img-element -- full-viewport HUD background */}
-      <img
-        src="/scenes/dorm.png"
-        alt=""
+      <div
+        className="osu-dorm-bg-wrap"
         style={{
           position: "fixed",
           top: 0,
           left: 0,
           width: "100%",
           height: "100%",
-          objectFit: "cover",
           zIndex: 0,
         }}
-      />
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element -- full-viewport HUD background */}
+        <img
+          src="/scenes/dorm.png"
+          alt=""
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+          }}
+        />
+        <div className="osu-dorm-rain-window" aria-hidden>
+          <div className="osu-dorm-rain-layer osu-dorm-rain-layer--a" />
+          <div className="osu-dorm-rain-layer osu-dorm-rain-layer--b" />
+        </div>
+      </div>
       <div
         style={{
           position: "fixed",
