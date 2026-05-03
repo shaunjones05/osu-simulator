@@ -313,6 +313,7 @@ export default function Home() {
   const [cutsceneWeekSelections, setCutsceneWeekSelections] = useState<
     string[]
   >([]);
+  const [storyText, setStoryText] = useState("");
   const [toast, setToast] = useState({ message: "", visible: false });
   const toastDismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -372,6 +373,7 @@ export default function Home() {
           setWeeklyShopSpend(0);
           setSummaryPanelOpen(false);
           setCutsceneWeekSelections([]);
+          setStoryText("");
           if (toastDismissTimerRef.current) {
             clearTimeout(toastDismissTimerRef.current);
             toastDismissTimerRef.current = null;
@@ -636,6 +638,7 @@ export default function Home() {
     void (async () => {
       const {
         finalStats,
+        story,
         sceneFile,
         extra,
         apiScenario,
@@ -680,6 +683,7 @@ export default function Home() {
       setWeekHistory((h) => [...h, weekEntry]);
 
       setCutsceneWeekSelections([...selections]);
+      setStoryText(story);
       setPendingApiScenario(apiScenario);
       setSceneImageFilename(sceneFile);
       setCutsceneExtraEvent(extra);
@@ -937,6 +941,7 @@ export default function Home() {
         statsAfter={after}
         extraEvent={cutsceneExtraEvent}
         weekSelections={cutsceneWeekSelections}
+        storyText={storyText}
         onContinue={() => {
           void handleCutsceneContinue();
         }}

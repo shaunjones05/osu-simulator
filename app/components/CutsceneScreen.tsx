@@ -105,6 +105,7 @@ export type CutsceneScreenProps = {
   statsAfter: WeekStats;
   extraEvent: CutsceneExtraEvent | null;
   weekSelections: string[];
+  storyText: string;
   onContinue: () => void;
 };
 
@@ -117,6 +118,7 @@ export default function CutsceneScreen({
   statsAfter,
   extraEvent,
   weekSelections,
+  storyText,
   onContinue,
 }: CutsceneScreenProps) {
   const baseFont =
@@ -189,7 +191,15 @@ export default function CutsceneScreen({
     color: "rgba(255, 255, 255, 0.88)",
     fontSize: "1rem",
     lineHeight: 1.65,
+    marginBottom: "0.85rem",
+  };
+
+  const storyStyle: CSSProperties = {
+    color: "rgba(255, 255, 255, 0.78)",
+    fontSize: "0.98rem",
+    lineHeight: 1.7,
     marginBottom: "1.25rem",
+    marginTop: 0,
   };
 
   const eventBox: CSSProperties = {
@@ -266,6 +276,7 @@ export default function CutsceneScreen({
 
   const hasScene = sceneImage.trim().length > 0;
   const activitySummary = buildWeekActivitySummary(weekSelections);
+  const storyTrimmed = storyText.trim();
 
   return (
     <div style={shell}>
@@ -289,6 +300,7 @@ export default function CutsceneScreen({
         ) : null}
 
         <p style={summaryStyle}>{activitySummary}</p>
+        {storyTrimmed ? <p style={storyStyle}>{storyTrimmed}</p> : null}
 
         {extraEvent ? (
           <div style={eventBox}>
