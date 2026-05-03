@@ -1,6 +1,6 @@
 import { ACTIVITIES } from "./gameData.js";
 
-const ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages";
+const ANTHROPIC_MESSAGES_URL = "/api/claude";
 const MODEL = "claude-sonnet-4-20250514";
 const MAX_TOKENS_CUTSCENE = 300;
 const MAX_TOKENS_ENDING = 300;
@@ -122,7 +122,6 @@ async function callAnthropicMessages(userPrompt, maxTokens) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
       model: MODEL,
